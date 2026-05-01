@@ -1,10 +1,11 @@
 """
 app.py — MailSort, головний модуль веб-застосунку.
 """
-import sys, os
+import sys, os, json, hashlib, secrets
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "core"))
 
 import functools
+import requests as _requests
 from flask import (Flask, render_template, redirect, url_for,
                    request, jsonify, flash, session, Response)
 
@@ -21,6 +22,13 @@ from database import (
     delete_email, delete_demo_emails, delete_all_emails,
 )
 from markupsafe import Markup, escape
+
+# ── Google OAuth config ──────────────────────────────────────────
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_AUTH_URL      = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL     = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL  = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 def _lazy_classify(subject, body, sender=""):
     from classifier import classify
@@ -286,20 +294,74 @@ def ensure_db():
 
 
 # ── Auth ─────────────────────────────────────────────────────────
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login")
 def login():
-    error = None
-    if request.method == "POST":
-        u = request.form.get("username", "")
-        p = request.form.get("password", "")
-        if u == get_setting("auth_user", "admin") and \
-           p == get_setting("auth_pass", "admin"):
-            session["logged_in"] = True
-            session["username"]  = u
-            next_url = request.args.get("next") or url_for("index")
-            return redirect(next_url)
-        error = "Невірний логін або пароль"
-    return render_template("login.html", error=error)
+    return render_template("login.html")
+
+
+@app.route("/auth/google")
+def auth_google():
+    """Перенаправляє на Google для авторизації."""
+    state = secrets.token_urlsafe(32)
+    session["oauth_state"] = state
+    redirect_uri = url_for("auth_google_callback", _external=True)
+    params = {
+        "client_id":     GOOGLE_CLIENT_ID,
+        "redirect_uri":  redirect_uri,
+        "response_type": "code",
+        "scope":         "openid email profile",
+        "state":         state,
+        "access_type":   "offline",
+        "prompt":        "select_account",
+    }
+    from urllib.parse import urlencode
+    return redirect(f"{GOOGLE_AUTH_URL}?{urlencode(params)}")
+
+
+@app.route("/auth/google/callback")
+def auth_google_callback():
+    """Обробляє callback від Google OAuth."""
+    error = request.args.get("error")
+    if error:
+        flash(f"Помилка авторизації: {error}", "error")
+        return redirect(url_for("login"))
+
+    code  = request.args.get("code")
+    state = request.args.get("state")
+
+    if not code or state != session.pop("oauth_state", None):
+        flash("Невірний запит авторизації.", "error")
+        return redirect(url_for("login"))
+
+    redirect_uri = url_for("auth_google_callback", _external=True)
+    token_resp = _requests.post(GOOGLE_TOKEN_URL, data={
+        "code":          code,
+        "client_id":     GOOGLE_CLIENT_ID,
+        "client_secret": GOOGLE_CLIENT_SECRET,
+        "redirect_uri":  redirect_uri,
+        "grant_type":    "authorization_code",
+    }, timeout=15)
+
+    if token_resp.status_code != 200:
+        flash("Не вдалося отримати токен.", "error")
+        return redirect(url_for("login"))
+
+    access_token = token_resp.json().get("access_token")
+    user_resp = _requests.get(GOOGLE_USERINFO_URL, headers={
+        "Authorization": f"Bearer {access_token}"
+    }, timeout=10)
+
+    if user_resp.status_code != 200:
+        flash("Не вдалося отримати дані користувача.", "error")
+        return redirect(url_for("login"))
+
+    user_info = user_resp.json()
+    session["logged_in"] = True
+    session["username"]  = user_info.get("name", user_info.get("email", "User"))
+    session["email"]     = user_info.get("email", "")
+    session["avatar"]    = user_info.get("picture", "")
+
+    return redirect(url_for("index"))
 
 
 @app.route("/logout")
