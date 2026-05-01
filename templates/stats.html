@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% block title %}Аналітика{% endblock %}
+
+{% block extra_head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+
+<style>
+.analytics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+.analytics-grid.full { grid-template-columns: 1fr; }
+.chart-card {
+  background: rgba(20,22,25,.82);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--r);
+  padding: 22px 26px;
+  backdrop-filter: blur(6px);
+}
+.chart-title {
+  font-size: 11px; font-weight: 600; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 18px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 24px; }
+.kpi {
+  background: rgba(20,22,25,.82); border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--r); padding: 16px 18px;
+  transition: border-color .15s; backdrop-filter: blur(4px);
+}
+.kpi:hover { border-color: var(--accent); }
+.kpi-num   { font-family: var(--mono); font-size: 26px; font-weight: 500; line-height: 1; }
+.kpi-label { font-size: 11px; color: var(--muted); margin-top: 5px; }
+.model-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.model-tab {
+  padding: 6px 14px; border-radius: var(--rs);
+  border: 1px solid var(--border); background: var(--bg3);
+  color: var(--muted); font-size: 12px; cursor: pointer;
+  transition: all .15s; font-family: var(--font);
+}
+.model-tab.active { background: rgba(79,142,247,.12); border-color: var(--accent); color: var(--accent); }
+.fold-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.fold-label { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 44px; }
+.fold-bar-bg { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.fold-bar-fill { height: 100%; border-radius: 3px; background: var(--accent); transition: width .5s ease; }
+.fold-val { font-family: var(--mono); font-size: 11px; color: var(--text); width: 38px; text-align: right; }
+.cm-wrap { overflow-x: auto; }
+.cm-table { border-collapse: collapse; width: 100%; font-size: 11px; }
+.cm-table th { padding: 6px 8px; color: var(--muted); font-weight: 500; text-align: center; border-bottom: 1px solid var(--border); }
+.cm-table td { padding: 7px 8px; text-align: center; font-family: var(--mono); font-size: 12px; border: 1px solid rgba(255,255,255,.04); position: relative; }
+.cm-table td.diag { color: #fff; font-weight: 600; }
+.cm-table td.off  { color: var(--red); }
+.cm-table td.zero { color: var(--bg3); }
+.cm-row-label { font-size: 10px; color: var(--muted); text-align: right; padding-right: 10px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.cm-axis-label { font-size: 10px; color: var(--muted); text-align: center; padding: 4px 0 8px; letter-spacing: .5px; }
+.metrics-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.metrics-table th { text-align: left; padding: 7px 10px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); font-size: 11px; letter-spacing: .5px; }
+.metrics-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.metric-bar-cell { width: 90px; }
+.metric-bar { height: 5px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+.metric-bar-fill { height: 100%; border-radius: 3px; }
+.loading { display: flex; align-items: center; justify-content: center; height: 120px; color: var(--muted); font-size: 13px; gap: 10px; }
+.spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+
+.progress-bar-inner { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), #a78bfa); transition: width .4s ease; }
+.pcat.done  { border-color: var(--green); color: var(--green); background: rgba(46,189,133,.08); } 50%{opacity:.6} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">Аналітика системи</div>
+<div class="page-sub">Статистика сортування та розподіл листів по категоріях</div>
+
+<!-- KPI -->
+<div class="kpi-row" id="kpiRow">
+  <div class="kpi"><div class="kpi-num" style="color:var(--accent)" id="kpiTotal">—</div><div class="kpi-label">Листів у БД</div></div>
+  <div class="kpi"><div class="kpi-num" style="color:var(--green)" id="kpiF1">—</div><div class="kpi-label">Точність</div></div>
+  <div class="kpi"><div class="kpi-num" style="color:#a78bfa" id="kpiBest" style="font-size:16px">—</div><div class="kpi-label">Метод сортування</div></div>
+  <div class="kpi"><div class="kpi-num" style="color:#fbbf24" id="kpiTrain">—</div><div class="kpi-label">Зразків у базі</div></div>
+  <div class="kpi"><div class="kpi-num" style="color:var(--muted)" id="kpiThresh">—</div><div class="kpi-label">Поріг визначення</div></div>
+</div>
+
+<!-- Row 1: CV comparison + per-class F1 bar -->
+<div class="analytics-grid">
+  <div class="chart-card">
+    <div class="chart-title"><span>Порівняння методів сортування</span></div>
+    <div class="model-tabs" id="modelTabs"></div>
+    <div id="cvFolds"><div class="loading"><div class="spinner"></div> Обчислення...</div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Точність по категоріях</div>
+    <canvas id="f1BarChart" height="220"></canvas>
+  </div>
+</div>
+
+<!-- Row 2: Confusion matrix -->
+<div class="analytics-grid full">
+  <div class="chart-card">
+    <div class="chart-title">
+      <span>Матриця розподілу</span>
+      <span style="font-size:10px;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">рядки = справжня · стовпці = визначена системою</span>
+    </div>
+    <div class="cm-wrap" id="cmWrap"><div class="loading"><div class="spinner"></div> Обчислення...</div></div>
+  </div>
+</div>
+
+<!-- Row 3: Precision/Recall/F1 + donut -->
+<div class="analytics-grid">
+  <div class="chart-card">
+    <div class="chart-title">Деталі по категоріях</div>
+    <div id="metricsTableWrap"><div class="loading"><div class="spinner"></div></div></div>
+  </div>
+  <div class="chart-card">
+    <div class="chart-title">Розподіл листів по категоріях</div>
+    <canvas id="donutChart" height="240"></canvas>
+  </div>
+</div>
+
+
+
+<script>
+const CAT_COLORS  = ['#4f8ef7','#a78bfa','#34d399','#fbbf24','#f87171','#60a5fa','#c084fc'];
+const SHORT_NAMES = {
+  'Новини та розсилки':    'Новини',
+  'Moodle':                'Moodle',
+  'Навчальний процес':     'Навчання',
+  'Адміністрація':         'Адмін.',
+  'Заходи та події':       'Заходи',
+};
+
+let f1Chart = null;
+function pct(v) { return Math.round(v * 100) + '%'; }
+function colorScale(v) {
+  if (v === 0) return 'transparent';
+  const r = Math.round(248 * (1 - v) + 79  * v);
+  const g = Math.round(113 * (1 - v) + 211 * v);
+  const b = Math.round(113 * (1 - v) + 153 * v);
+  return `rgba(${r},${g},${b},${0.15 + v * 0.55})`;
+}
+
+async function loadDbStats() {
+  const r = await fetch('/api/stats');
+  const d = await r.json();
+  document.getElementById('kpiTotal').textContent = d.total;
+  const cats   = d.by_category.map(x => SHORT_NAMES[x.category] || x.category);
+  const counts = d.by_category.map(x => x.cnt);
+  new Chart(document.getElementById('donutChart'), {
+    type: 'doughnut',
+    data: { labels: cats, datasets: [{ data: counts, backgroundColor: CAT_COLORS, borderWidth: 2, borderColor: 'rgba(20,22,25,.9)' }] },
+    options: {
+      cutout: '62%',
+      plugins: { legend: { position: 'bottom', labels: { color: '#6b6d78', font: { size: 11 }, boxWidth: 12, padding: 10 } } }
+    }
+  });
+}
+
+async function loadModelStats() {
+  const r = await fetch('/api/model-stats');
+  const d = await r.json();
+  document.getElementById('kpiF1').textContent    = pct(d.overall_f1);
+  document.getElementById('kpiBest').textContent  = d.best_model.replace(' (LinearSVC)', '');
+  document.getElementById('kpiTrain').textContent = d.train_size;
+  document.getElementById('kpiThresh').textContent= pct(d.threshold);
+
+  const tabsEl = document.getElementById('modelTabs');
+  const foldsEl= document.getElementById('cvFolds');
+  const models = Object.keys(d.cv_results);
+  let activeModel = d.best_model;
+
+  function renderFolds(name) {
+    const cv = d.cv_results[name];
+    let html = `<div style="margin-bottom:14px">
+      <span style="font-family:var(--mono);font-size:22px;color:var(--green)">${pct(cv.mean)}</span>
+      <span style="color:var(--muted);font-size:11px;margin-left:8px">± ${pct(cv.std)} середня точність</span>
+    </div>`;
+    cv.scores.forEach((s, i) => {
+      html += `<div class="fold-row">
+        <span class="fold-label">Цикл ${i+1}</span>
+        <div class="fold-bar-bg"><div class="fold-bar-fill" style="width:${s*100}%"></div></div>
+        <span class="fold-val">${pct(s)}</span>
+      </div>`;
+    });
+    foldsEl.innerHTML = html;
+  }
+  function renderTabs() {
+    tabsEl.innerHTML = '';
+    models.forEach(name => {
+      const btn = document.createElement('button');
+      btn.className = 'model-tab' + (name === activeModel ? ' active' : '');
+      btn.innerHTML = `${name.replace('LR + char+word','Стандартний').replace('SVM + char+word','Розширений').replace('SVM (word)','Базовий').replace('Naive Bayes','Простий').replace(' (LinearSVC)','')} <span style="opacity:.6;font-size:10px">${pct(d.cv_results[name].mean)}</span>`;
+      btn.onclick = () => { activeModel = name; renderTabs(); renderFolds(name); };
+      tabsEl.appendChild(btn);
+    });
+  }
+  renderTabs(); renderFolds(activeModel);
+
+  const cats   = d.categories;
+  const f1vals = cats.map(c => d.per_class_f1[c] || 0);
+  if (f1Chart) f1Chart.destroy();
+  f1Chart = new Chart(document.getElementById('f1BarChart'), {
+    type: 'bar',
+    data: { labels: cats.map(c => SHORT_NAMES[c] || c), datasets: [{ label: 'Точність', data: f1vals, backgroundColor: CAT_COLORS, borderRadius: 4, borderSkipped: false }] },
+    options: {
+      indexAxis: 'y',
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` F1: ${pct(ctx.raw)}` } } },
+      scales: {
+        x: { min: 0, max: 1, ticks: { color: '#6b6d78', font: { size: 11 }, callback: v => pct(v) }, grid: { color: '#2a2b30' } },
+        y: { ticks: { color: '#e4e4e6', font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  const cm = d.confusion_matrix;
+  const maxV = Math.max(...cm.flat().filter(v => v > 0));
+  let html = '<table class="cm-table"><thead><tr><th></th>';
+  cats.forEach(c => { html += `<th title="${c}">${SHORT_NAMES[c]||c}</th>`; });
+  html += '</tr></thead><tbody>';
+  cm.forEach((row, ri) => {
+    html += `<tr><td class="cm-row-label" title="${cats[ri]}">${SHORT_NAMES[cats[ri]]||cats[ri]}</td>`;
+    row.forEach((val, ci) => {
+      let cls = val === 0 ? 'zero' : (ri === ci ? 'diag' : 'off');
+      const bg = (ri === ci && val > 0) ? colorScale(val/maxV) : (val > 0 ? 'rgba(248,113,113,0.15)' : 'transparent');
+      html += `<td class="${cls}" style="background:${bg}">${val||'·'}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table><div class="cm-axis-label" style="margin-top:10px">↑ Визначена системою</div>';
+  document.getElementById('cmWrap').innerHTML = html;
+
+  let tbl = `<table class="metrics-table"><thead><tr>
+    <th>Категорія</th><th>Точність</th><th></th><th>Охоплення</th><th></th><th>Баланс</th><th></th>
+  </tr></thead><tbody>`;
+  cats.forEach((c, i) => {
+    const prec = d.per_class_prec[c] || 0, rec = d.per_class_rec[c] || 0, f1 = d.per_class_f1[c] || 0;
+    const col = CAT_COLORS[i % CAT_COLORS.length];
+    const bar = (v, color) => `<td class="metric-bar-cell"><div class="metric-bar"><div class="metric-bar-fill" style="width:${v*100}%;background:${color}"></div></div></td>`;
+    tbl += `<tr><td style="font-size:12px">${SHORT_NAMES[c]||c}</td>
+      <td style="font-family:var(--mono);font-size:11px">${pct(prec)}</td>${bar(prec,col)}
+      <td style="font-family:var(--mono);font-size:11px">${pct(rec)}</td>${bar(rec,'#34d399')}
+      <td style="font-family:var(--mono);font-size:11px;color:${col}">${pct(f1)}</td>${bar(f1,col)}
+    </tr>`;
+  });
+  tbl += '</tbody></table>';
+  document.getElementById('metricsTableWrap').innerHTML = tbl;
+}
+
+loadDbStats();
+loadModelStats();
+
+</script>
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Категорії{% endblock %}
+
+{% block extra_head %}
+<style>
+.cat-mgmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.mgmt-card {
+  background: rgba(20,22,25,.78); border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--r); padding: 22px 24px; backdrop-filter: blur(8px);
+}
+.card-title {
+  font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+  color: rgba(190,196,214,.9);
+}
+.add-form { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.add-input {
+  flex: 1; min-width: 140px; background: rgba(28,30,35,.9);
+  border: 1px solid rgba(255,255,255,.1); border-radius: var(--rs);
+  color: var(--text); padding: 8px 12px; font-size: 13px; font-family: var(--font);
+  outline: none; transition: border-color .15s;
+}
+.add-input:focus { border-color: var(--accent); }
+.icon-input { width: 52px; text-align: center; font-size: 18px; padding: 6px; flex:none; }
+.cat-list { display: flex; flex-direction: column; gap: 6px; }
+.cat-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; background: rgba(255,255,255,.03);
+  border-radius: var(--rs); border: 1px solid rgba(255,255,255,.06);
+  transition: border-color .15s;
+}
+.cat-item:hover { border-color: rgba(255,255,255,.1); }
+.cat-icon-nm { display: flex; align-items: center; gap: 10px; }
+.cat-item-icon { font-size: 18px; }
+.cat-item-name { font-size: 13px; font-weight: 500; }
+.cat-item-count { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.badge-auto { font-size: 9px; padding: 2px 5px; border-radius: 3px;
+  background: rgba(78,141,232,.15); color: var(--accent);
+  font-weight: 600; letter-spacing: .5px; text-transform: uppercase; margin-left: 6px; }
+.del-btn { background: none; border: none; color: var(--muted); cursor: pointer;
+  padding: 2px 6px; border-radius: 3px; transition: all .15s; }
+.del-btn:hover { background: rgba(224,92,92,.15); color: var(--red); }
+.del-btn:disabled { opacity: .25; cursor: not-allowed; }
+.info-box {
+  background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.18);
+  border-radius: var(--r); padding: 14px 16px; font-size: 12px;
+  color: rgba(190,196,214,.92); margin-bottom: 20px; line-height: 1.7;
+  backdrop-filter: blur(4px);
+}
+.info-box strong { color: #fbbf24; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">Категорії листів</div>
+<div class="page-sub">Керування категоріями для класифікації пошти</div>
+
+<div class="info-box">
+  <strong>Важливо:</strong> Вбудовані категорії визначаються автоматично. Нові категорії призначаються <strong>вручну</strong> на сторінці листа.
+</div>
+
+<div class="cat-mgmt-grid">
+  <div class="mgmt-card">
+    <div class="card-title"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Вбудовані категорії (7)</div>
+    <div class="cat-list">
+      {% for cat in all_cats if cat.is_default %}
+      <div class="cat-item">
+        <div class="cat-icon-nm">
+          <span class="cat-item-icon">{{ cat.icon }}</span>
+          <div>
+            <span class="cat-item-name">{{ cat.name }}</span>
+            <span class="badge-auto">Авто</span>
+          </div>
+        </div>
+        <span class="cat-item-count">{{ count.get(cat.name, 0) }} листів</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="mgmt-card">
+    <div class="card-title"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Мої категорії</div>
+    <form method="POST" action="/categories/add" class="add-form">
+      <input class="add-input icon-input" type="text" name="icon" value="" maxlength="2" title="Іконка">
+      <input class="add-input" type="text" name="name" placeholder="Назва категорії..." maxlength="40" required autocomplete="off">
+      <button type="submit" class="btn btn-primary">+ Створити</button>
+    </form>
+
+    <div class="cat-list">
+      {% set custom_cats = all_cats | rejectattr("is_default") | list %}
+      {% if custom_cats %}
+        {% for cat in custom_cats %}
+        <div class="cat-item">
+          <div class="cat-icon-nm">
+            <span class="cat-item-icon">{{ cat.icon }}</span>
+            <span class="cat-item-name">{{ cat.name }}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="cat-item-count">{{ count.get(cat.name, 0) }} листів</span>
+            <form method="POST" action="/categories/delete" style="margin:0"
+                  onsubmit="return confirm('Видалити «{{ cat.name }}»? Листи перейдуть у «Невизначено».')">
+              <input type="hidden" name="name" value="{{ cat.name }}">
+              <button type="submit" class="del-btn" title="Видалити">✕</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div style="color:var(--muted);font-size:12px;text-align:center;padding:30px">
+          Власних категорій ще немає.<br>Створіть першу вище!
+        </div>
+      {% endif %}
+    </div>
+
+    {% if custom_cats %}
+    <div style="margin-top:14px;font-size:11px;color:var(--muted);border-top:1px solid rgba(255,255,255,.06);padding-top:12px">
+      При видаленні категорії всі листи переходять у «Невизначено»
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Огляд{% endblock %}
+
+{% block extra_head %}
+<style>
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; margin-bottom:28px; }
+.stat-card {
+  background: rgba(20,22,25,.75);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--r);
+  padding: 16px 20px;
+  transition: all .15s;
+  backdrop-filter: blur(6px);
+}
+.stat-card:hover { border-color: rgba(78,141,232,.4); transform: translateY(-2px); }
+.stat-num   { font-family:var(--mono); font-size:26px; font-weight:500; color:var(--accent); line-height:1; margin-bottom:4px; }
+.stat-label { font-size:12px; color:var(--muted); }
+.stat-sub   { font-size:11px; color:var(--green); margin-top:2px; }
+
+.cat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; }
+.cat-card {
+  background: rgba(20,22,25,.75);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--r);
+  padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px;
+  text-decoration: none; color: var(--text);
+  transition: all .15s;
+  backdrop-filter: blur(6px);
+}
+.cat-card:hover {
+  border-color: rgba(78,141,232,.4);
+  background: rgba(78,141,232,.08);
+  text-decoration: none; color: var(--text);
+  transform: translateY(-1px);
+}
+.cat-icon   { display:flex; align-items:center; width:20px; height:20px; color:var(--muted); flex-shrink:0; }
+.cat-name   { font-size:13px; font-weight:500; }
+.cat-meta   { font-size:11px; color:var(--muted); margin-top:2px; }
+.cat-right  { margin-left:auto; text-align:right; }
+.cat-count  { font-family:var(--mono); font-size:18px; font-weight:500; }
+.cat-unread { font-size:10px; color:var(--green); }
+.toolbar    { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+.toolbar-label { font-size:11px; color:var(--muted); font-weight:600; letter-spacing:.8px; text-transform:uppercase; }
+.toolbar-btns  { display:flex; gap:8px; }
+.btn-del {
+  font-size:11px; padding:5px 12px;
+  background: rgba(20,22,25,.7);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--rs); color:var(--muted);
+  cursor:pointer; font-family:var(--font); transition:all .15s;
+  backdrop-filter: blur(4px);
+}
+.btn-del:hover { border-color:rgba(224,92,92,.4); color:var(--red); background:rgba(224,92,92,.08); }
+.empty-state {
+  text-align:center; padding:60px 20px; color:var(--muted);
+  border: 1px dashed rgba(255,255,255,.1);
+  border-radius: var(--r);
+  background: rgba(20,22,25,.6);
+  backdrop-filter: blur(4px);
+}
+.empty-state h3 { font-size:16px; margin-bottom:8px; color:var(--text); }
+.empty-state p  { font-size:13px; margin-bottom:20px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">Панель керування</div>
+<div class="page-sub">Автоматична класифікація електронних листів</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-num">{{ total }}</div>
+    <div class="stat-label">Всього листів</div>
+  </div>
+  {% for cat in categories %}
+  {% set c = count.get(cat.name, 0) %}
+  {% set u = unread.get(cat.name, 0) %}
+  {% if c > 0 %}
+  <div class="stat-card">
+    <div class="stat-num">{{ c }}</div>
+    <div class="stat-label">{{ cat.name }}</div>
+    {% if u > 0 %}<div class="stat-sub">{{ u }} непрочитаних</div>{% endif %}
+  </div>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<!-- Toolbar — завжди видима -->
+<div class="toolbar">
+  <span class="toolbar-label">Категорії</span>
+  <div class="toolbar-btns">
+    <form method="POST" action="/delete-demo" style="margin:0"
+          onsubmit="return confirm('Видалити всі демо-листи?')">
+      <button type="submit" class="btn-del"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg> Видалити демо</button>
+    </form>
+    <form method="POST" action="/delete-all" style="margin:0"
+          onsubmit="return confirm('Видалити ВСІ листи з бази? Це не можна скасувати.')">
+      <button type="submit" class="btn-del">✕ Очистити все</button>
+    </form>
+  </div>
+</div>
+
+<!-- Categories or empty -->
+{% if total == 0 %}
+  <div class="empty-state">
+    <h3>Листів ще немає</h3>
+    <p>Завантажте демо-дані або натисніть "Синхронізувати IMAP"</p>
+    <form method="POST" action="/demo" style="display:inline">
+      <button class="btn btn-demo" style="width:auto"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg> Завантажити демо-дані</button>
+    </form>
+  </div>
+{% else %}
+  <div class="cat-grid">
+    {% for cat in categories %}
+    {% set cat_icons = {
+  "newspaper":     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 0-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/></svg>',
+  "briefcase":     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
+  "message-square":'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  "globe":         '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>',
+  "flask-conical": '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>',
+  "book-open":     '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
+  "clipboard-list":'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>',
+} %}
+    {% set c = count.get(cat.name, 0) %}
+    <a href="/category/{{ cat.name }}" class="cat-card">
+      <span class="cat-icon">{{ cat_icons.get(cat.icon, cat_icons["briefcase"]) | safe }}</span>
+      <div>
+        <div class="cat-name">{{ cat.name }}</div>
+        <div class="cat-meta">{{ c }} листів</div>
+      </div>
+      <div class="cat-right">
+        <div class="cat-count" style="color:{% if c > 0 %}var(--accent){% else %}var(--muted){% endif %}">{{ c }}</div>
+        {% set u = unread.get(cat.name, 0) %}
+        {% if u > 0 %}<div class="cat-unread">{{ u }} нових</div>{% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

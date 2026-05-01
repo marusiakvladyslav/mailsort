@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+data/emails.db
+models/classifier.pkl
+models/vectorizer.pkl
+.env
+*.zip
+*.bat
+*.command
+venv/
+.venv/

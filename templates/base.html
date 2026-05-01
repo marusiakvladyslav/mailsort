@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{% block title %}MailSort{% endblock %} — ЧНУ</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f12;--bg2:#141619;--bg3:#1c1e23;--bg4:#22252b;
+  --border:#2a2d35;--border2:#363b45;
+  --text:#dde1ea;--muted:#9aa0b4;--muted2:#636878;
+  --accent:#4e8de8;--accent-h:#3a74cc;
+  --green:#2ebd85;--red:#e05c5c;
+  --font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
+  --r:10px;--rs:6px
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6;min-height:100vh;display:flex;flex-direction:column;position:relative}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.layout{display:flex;flex:1;position:relative;z-index:1}
+
+/* Sidebar */
+.sidebar{width:256px;min-height:100vh;background:rgba(10,12,15,.88);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent;z-index:2;backdrop-filter:blur(8px)}
+.main-wrap{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;z-index:1}
+
+/* Logo block */
+.logo{border-bottom:1px solid var(--border)}
+.logo-uni{display:flex;align-items:center;gap:11px;padding:16px 18px 13px;background:linear-gradient(135deg,rgba(78,141,232,.08),transparent)}
+.uni-img{width:40px;height:40px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 1px 3px rgba(0,0,0,.5))}
+.uni-text strong{display:block;font-size:12px;font-weight:600;color:var(--text);line-height:1.3}
+.uni-text span{font-size:10px;color:var(--muted)}
+.logo-app{display:flex;align-items:center;gap:9px;padding:11px 18px 13px}
+.app-badge{width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,#3a74cc,#5b4fd4);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.app-badge svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.app-title{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.3px}
+.app-sub{font-size:10px;color:var(--muted)}
+
+/* Search */
+.search-box{padding:10px 14px;border-bottom:1px solid var(--border)}
+.search-inner{display:flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--rs);padding:7px 10px;transition:border-color .15s}
+.search-inner:focus-within{border-color:var(--accent)}
+.search-inner svg{width:13px;height:13px;stroke:var(--muted);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.search-inner input{flex:1;background:none;border:none;color:var(--text);font-size:12px;outline:none;font-family:var(--font)}
+.search-inner input::placeholder{color:var(--muted)}
+
+/* Nav */
+.nav-sec{padding:8px 0 4px}
+.nav-lbl{padding:6px 18px 4px;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted2)}
+.nl{display:flex;align-items:center;justify-content:space-between;padding:8px 18px;color:var(--muted);font-size:13px;border-left:2px solid transparent;transition:all .12s;text-decoration:none}
+.nl:hover{background:rgba(255,255,255,.025);color:var(--text);text-decoration:none}
+.nl.active{background:rgba(78,141,232,.1);border-left-color:var(--accent);color:var(--accent);font-weight:500}
+.nl-left{display:flex;align-items:center;gap:9px}
+.nl svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+
+/* Badges */
+.bdg{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:99px;font-weight:500;min-width:22px;text-align:center}
+.bdg-blue{background:rgba(78,141,232,.16);color:var(--accent);border:1px solid rgba(78,141,232,.15)}
+.bdg-grey{background:var(--bg3);color:var(--muted2);border:1px solid var(--border)}
+.bdg-green{background:rgba(46,189,133,.12);color:var(--green);border:1px solid rgba(46,189,133,.15)}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 15px;border-radius:var(--rs);font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-h)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg3);color:var(--text)}
+.btn-sync{background:var(--accent);color:#fff;width:100%;justify-content:center;margin-bottom:7px}
+.btn-sync:hover{background:var(--accent-h)}
+.btn-sync:disabled{opacity:.6;cursor:not-allowed}
+.btn-demo{background:rgba(46,189,133,.07);color:var(--green);border:1px solid rgba(46,189,133,.15);width:100%;justify-content:center;margin-bottom:5px}
+.btn-demo:hover{background:rgba(46,189,133,.13)}
+
+/* Actions */
+.sidebar-actions{padding:12px 14px 10px;border-top:1px solid var(--border)}
+.btn-row{display:flex;gap:6px;margin-top:8px}
+.btn-sm{flex:1;justify-content:center;font-size:11px;padding:6px 8px;gap:5px}
+#syncStatus{font-size:10px;color:var(--muted);text-align:center;margin-top:5px;min-height:14px;font-family:var(--mono)}
+
+/* Sync Progress Modal */
+.sp-overlay{position:fixed;inset:0;background:rgba(10,16,28,.55);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:1000;animation:fin .15s ease}
+.sp-overlay.show{display:flex}
+.sp-modal{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px 26px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.sp-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.sp-title svg{color:var(--accent)}
+.sp-phase{font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:16px;min-height:16px}
+.sp-bar-wrap{background:var(--bg);border-radius:8px;height:10px;overflow:hidden;margin-bottom:10px;position:relative}
+.sp-bar{height:100%;background:linear-gradient(90deg,var(--accent),#7ab7ff);border-radius:8px;width:0;transition:width .25s ease}
+.sp-bar.indeterminate{width:35%;animation:spind 1.3s ease-in-out infinite}
+@keyframes spind{0%{margin-left:-35%}100%{margin-left:100%}}
+.sp-counts{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-family:var(--mono);margin-bottom:12px}
+.sp-counts .sp-pct{color:var(--accent);font-weight:600}
+.sp-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.sp-stat{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;text-align:center}
+.sp-stat-val{font-size:16px;font-weight:600;font-family:var(--mono)}
+.sp-stat-val.ok{color:var(--green)}
+.sp-stat-val.mut{color:var(--muted)}
+.sp-stat-val.err{color:var(--red)}
+.sp-stat-lbl{font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.5px;margin-top:2px}
+.sp-last{font-size:11px;color:var(--muted);font-family:var(--mono);background:var(--bg);padding:8px 10px;border-radius:6px;min-height:30px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:12px}
+.sp-last-cat{color:var(--accent)}
+.sp-actions{display:flex;gap:8px;justify-content:flex-end}
+.sp-btn{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:13px;cursor:pointer;font-family:inherit}
+.sp-btn:hover{background:var(--border)}
+.sp-btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sp-btn.primary:hover{background:var(--accent-h)}
+.sp-modal.done .sp-bar{background:var(--green)}
+.sp-modal.error .sp-bar{background:var(--red)}
+
+/* Footer */
+.sidebar-footer{padding:12px 18px 14px;border-top:1px solid var(--border);margin-top:auto}
+.footer-txt{font-size:9px;color:var(--muted2);line-height:1.8;font-family:var(--mono);border-left:2px solid rgba(78,141,232,.2);padding-left:8px}
+.footer-txt strong{color:var(--muted)}
+
+/* Flash */
+.flashes{position:fixed;top:16px;right:16px;z-index:999;display:flex;flex-direction:column;gap:8px}
+.flash{padding:11px 18px;border-radius:var(--r);font-size:13px;max-width:400px;animation:fin .2s ease}
+.flash.success{background:rgba(46,189,133,.1);border:1px solid rgba(46,189,133,.22);color:var(--green)}
+.flash.error{background:rgba(224,92,92,.1);border:1px solid rgba(224,92,92,.22);color:var(--red)}
+@keyframes fin{from{transform:translateX(16px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Page header */
+.page-header{display:flex;align-items:center;gap:13px;padding:13px 44px;background:rgba(10,12,15,.75);border-bottom:1px solid rgba(255,255,255,.07);position:relative;z-index:2;flex-shrink:0;backdrop-filter:blur(12px)}
+.hdr-logo{width:38px;height:38px;object-fit:contain;flex-shrink:0;filter:drop-shadow(0 1px 4px rgba(0,0,0,.6))}
+.hdr-uni-name{font-size:13px;font-weight:600;color:var(--text)}
+.hdr-uni-sub{font-size:11px;color:var(--muted)}
+
+/* Full-screen background with overlay */
+.bg-fullscreen{
+  position:fixed;inset:0;z-index:0;
+  background-size:cover;background-position:center;
+  background-repeat:no-repeat;
+  transition:opacity .5s ease;
+}
+.bg-fullscreen::after{
+  content:'';position:absolute;inset:0;
+  background:rgba(13,15,18,.72);
+  backdrop-filter:blur(0px);
+}
+.bg-fullscreen.fading{opacity:0}
+
+/* Main content */
+.main-inner{display:flex;flex:1;overflow:hidden;position:relative;z-index:1}
+.main{flex:1;padding:28px 44px 40px;overflow-y:auto;position:relative;z-index:1}
+.page-title{font-size:23px;font-weight:600;margin-bottom:6px;letter-spacing:-.4px}
+.page-sub{color:rgba(180,186,204,.85);font-size:13px;margin-bottom:28px;padding-bottom:0;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+.card{background:rgba(20,22,25,.82);border:1px solid rgba(255,255,255,.07);border-radius:var(--r);padding:20px;backdrop-filter:blur(4px)}
+
+/* News panel */
+.news-panel{width:272px;flex-shrink:0;background:rgba(10,12,15,.75);border-left:1px solid rgba(255,255,255,.06);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border2) transparent;backdrop-filter:blur(8px)}
+.news-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 10px;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(13,15,18,.9);backdrop-filter:blur(4px);z-index:2}
+.news-hdr-title{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted2);display:flex;align-items:center;gap:6px}
+.news-hdr-title svg{width:13px;height:13px;stroke:var(--muted2);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.news-hdr-right{display:flex;align-items:center;gap:8px}
+.news-hdr-right a{font-size:9px;color:var(--muted2);text-decoration:none}
+.news-hdr-right a:hover{color:var(--accent)}
+.news-ref-btn{background:none;border:none;color:var(--muted2);cursor:pointer;padding:3px;border-radius:3px;display:flex;align-items:center}
+.news-ref-btn:hover{color:var(--accent)}
+.news-ref-btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.news-item{display:block;padding:9px 14px 9px 12px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s,border-left-color .15s;border-left:3px solid transparent;position:relative;text-decoration:none !important}
+.news-item:hover{background:rgba(78,141,232,.06);border-left-color:var(--accent);text-decoration:none !important}
+.news-item-title{font-size:12px;color:rgba(220,224,234,.9);text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5;font-weight:400;transition:color .15s}
+.news-item:hover .news-item-title{color:#fff;text-decoration:none}
+.news-item-meta{display:flex;align-items:center;gap:6px;margin-top:5px}
+.news-cat{font-size:9px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;padding:2px 6px;border-radius:3px;opacity:.85}
+.news-date{font-size:10px;color:var(--muted2);font-family:var(--mono)}
+.news-arrow{position:absolute;right:10px;top:50%;transform:translateY(-50%);opacity:0;transition:opacity .15s;color:var(--accent)}
+.news-arrow svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.news-item:hover .news-arrow{opacity:1}
+.news-status{padding:16px;font-size:12px;color:var(--muted);text-align:center;line-height:1.6}
+.news-more{display:flex;align-items:center;justify-content:center;gap:6px;padding:11px 14px;font-size:11px;color:var(--muted);cursor:pointer;border-top:1px solid var(--border);background:none;border-left:none;border-right:none;border-bottom:none;width:100%;font-family:var(--font);transition:all .2s;letter-spacing:.3px}
+.news-more:hover{color:var(--accent);background:rgba(78,141,232,.07)}
+.news-more svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.news-more:hover svg{transform:translateY(2px)}
+
+/* News modal */
+.news-modal-bg{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.news-modal-bg.open{opacity:1;pointer-events:all}
+.news-modal{background:#16181d;border:1px solid var(--border2);border-radius:12px;width:min(680px,95vw);max-height:85vh;display:flex;flex-direction:column;transform:translateY(12px);transition:transform .2s;overflow:hidden}
+.news-modal-bg.open .news-modal{transform:translateY(0)}
+.news-modal-img{width:100%;height:200px;object-fit:cover;flex-shrink:0}
+.news-modal-body{padding:22px 26px 26px;overflow-y:auto;flex:1}
+.news-modal-title{font-size:17px;font-weight:600;line-height:1.4;margin-bottom:10px;color:var(--text)}
+.news-modal-meta{font-size:11px;color:var(--muted2);font-family:var(--mono);margin-bottom:16px;display:flex;gap:14px;align-items:center}
+.news-modal-text{font-size:13px;color:var(--muted);line-height:1.8}
+.news-modal-footer{padding:12px 26px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.news-modal-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 0;flex-shrink:0}
+.news-modal-close{background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:4px;display:flex;align-items:center}
+.news-modal-close:hover{color:var(--text);background:var(--bg3)}
+.news-modal-loading{display:flex;align-items:center;justify-content:center;gap:10px;height:160px;color:var(--muted);font-size:13px}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+</style>
+{% block extra_head %}{% endblock %}
+</head>
+<body>
+
+{# ── Flashes ── #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+{% if messages %}
+<div class="flashes">
+  {% for cat,msg in messages %}
+  <div class="flash {{ cat }}">{{ msg }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+
+{# ── SVG icon macro ── #}
+{% macro ic(n, w=16, h=16) %}
+<svg width="{{ w }}" height="{{ h }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+{%- if n=="mail" %}<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/>
+{%- elif n=="dashboard" %}<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+{%- elif n=="star" %}<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+{%- elif n=="chart" %}<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+{%- elif n=="search" %}<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+{%- elif n=="shield" %}<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9" y1="12" x2="15" y2="12"/>
+{%- elif n=="folder" %}<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+{%- elif n=="trash" %}<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+{%- elif n=="help" %}<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+{%- elif n=="play" %}<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/>
+{%- elif n=="refresh" %}<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>
+{%- elif n=="settings" %}<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+{%- elif n=="logout" %}<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+{%- elif n=="newspaper" %}<path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 0-2 2zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8M15 18h-5M10 6h8v4h-8z"/>
+{%- elif n=="flask-conical" %}<path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>
+{%- elif n=="book-open" %}<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+{%- elif n=="globe" %}<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+{%- elif n=="clipboard" %}<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
+{%- elif n=="message" %}<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+{%- elif n=="briefcase" %}<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+{%- elif n=="chevron-down" %}<polyline points="6 9 12 15 18 9"/>
+{%- elif n=="rss" %}<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>
+{%- elif n=="layers" %}<polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
+{%- elif n=="calendar" %}<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+{%- elif n=="wallet" %}<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>
+{%- elif n=="monitor" %}<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+{%- elif n=="activity" %}<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+{%- elif n=="refresh-cw" %}<path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>
+{%- elif n=="zap" %}<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+{%- elif n=="target" %}<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+{%- elif n=="bar-chart-2" %}<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+{%- elif n=="grid" %}<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+{%- elif n=="alert-triangle" %}<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+{%- elif n=="clock" %}<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+{%- endif %}
+</svg>
+{% endmacro %}
+
+{# ── Category icon macro ── #}
+{% macro cat_ic(icon_name) %}
+{%- if icon_name == "rss" %}{{ ic("rss") }}
+{%- elif icon_name == "layers" %}{{ ic("layers") }}
+{%- elif icon_name == "book-open" %}{{ ic("book-open") }}
+{%- elif icon_name == "clipboard" %}{{ ic("clipboard") }}
+{%- elif icon_name == "calendar" %}{{ ic("calendar") }}
+{%- elif icon_name == "wallet" %}{{ ic("wallet") }}
+{%- elif icon_name == "newspaper" %}{{ ic("newspaper") }}
+{%- elif icon_name == "flask-conical" %}{{ ic("flask-conical") }}
+{%- elif icon_name == "globe" %}{{ ic("globe") }}
+{%- elif icon_name == "briefcase" %}{{ ic("briefcase") }}
+{%- elif icon_name == "monitor" %}{{ ic("monitor") }}
+{%- else %}{{ ic("folder") }}
+{%- endif %}
+{% endmacro %}
+
+<div class="bg-fullscreen" id="bgFullscreen" style="background-image:url('/static/{{ bg_image|default('bg_main.jpg') }}')"></div>
+<div class="layout">
+<aside class="sidebar">
+
+  <div class="logo">
+    <div class="logo-app">
+      <div class="app-badge">{{ ic("mail",15,15) }}</div>
+      <div>
+        <div class="app-title">MailSort</div>
+        <div class="app-sub">Класифікатор пошти</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="search-box">
+    <form method="GET" action="/search">
+      <div class="search-inner">
+        {{ ic("search",13,13) }}
+        <input type="text" name="q" placeholder="Пошук листів...">
+      </div>
+    </form>
+  </div>
+
+  <div class="nav-sec">
+    <div class="nav-lbl">Навігація</div>
+    <a href="/" class="nl {% if request.path=='/' %}active{% endif %}">
+      <span class="nl-left">{{ ic("dashboard") }} Огляд</span>
+    </a>
+    <a href="/starred" class="nl {% if request.path=='/starred' %}active{% endif %}">
+      <span class="nl-left">{{ ic("star") }} Важливі</span>
+      {% if starred_count > 0 %}<span class="bdg bdg-green">{{ starred_count }}</span>{% endif %}
+    </a>
+    <a href="/stats" class="nl {% if request.path=='/stats' %}active{% endif %}">
+      <span class="nl-left">{{ ic("chart") }} Аналітика</span>
+    </a>
+    <a href="/ml-quality" class="nl {% if request.path=='/ml-quality' %}active{% endif %}">
+      <span class="nl-left">{{ ic("activity") }} Якість моделі</span>
+      <span id="mqPendingNav" class="bdg bdg-blue" style="display:none"></span>
+    </a>
+    <a href="/search" class="nl {% if request.path=='/search' %}active{% endif %}">
+      <span class="nl-left">{{ ic("search") }} Пошук</span>
+    </a>
+    <a href="/spam-rules" class="nl {% if request.path=='/spam-rules' %}active{% endif %}">
+      <span class="nl-left">{{ ic("shield") }} Спам</span>
+    </a>
+    <a href="/categories" class="nl {% if request.path=='/categories' %}active{% endif %}">
+      <span class="nl-left">{{ ic("folder") }} Категорії</span>
+    </a>
+    <a href="/help" class="nl {% if request.path=='/help' %}active{% endif %}">
+      <span class="nl-left">{{ ic("help") }} Інструкція</span>
+    </a>
+  </div>
+
+  <div class="nav-sec">
+    <div class="nav-lbl">Поштові папки</div>
+    {% for cat in categories %}
+    <a href="/category/{{ cat.name }}"
+       class="nl {% if request.path=='/category/'~cat.name %}active{% endif %}">
+      <span class="nl-left">{{ cat_ic(cat.icon) }} {{ cat.name }}</span>
+      {% set u = unread.get(cat.name,0) %}
+      {% if u > 0 %}
+        <span class="bdg bdg-blue">{{ u }}</span>
+      {% else %}
+        <span class="bdg bdg-grey">{{ count.get(cat.name,0) }}</span>
+      {% endif %}
+    </a>
+    {% endfor %}
+    <a href="/category/Спам / Реклама"
+       class="nl {% if request.path=='/category/Спам / Реклама' %}active{% endif %}">
+      <span class="nl-left">{{ ic("trash") }} Спам / Реклама</span>
+      <span class="bdg bdg-grey">{{ count.get('Спам / Реклама',0) }}</span>
+    </a>
+    <a href="/category/Невизначено"
+       class="nl {% if request.path=='/category/Невизначено' %}active{% endif %}">
+      <span class="nl-left">{{ ic("help") }} Невизначено</span>
+      <span class="bdg bdg-grey">{{ count.get('Невизначено',0) }}</span>
+    </a>
+  </div>
+
+  <div class="sidebar-actions">
+    <button class="btn btn-sync" id="syncBtn" onclick="manualSync()">
+      <span id="syncIco">{{ ic("refresh",13,13) }}</span> Синхронізувати
+    </button>
+    <form method="POST" action="/demo">
+      <button type="submit" class="btn btn-demo">
+        {{ ic("play",13,13) }} Демо-дані
+      </button>
+    </form>
+    <div id="syncStatus"></div>
+    <div class="btn-row">
+      <a href="/settings" class="btn btn-ghost btn-sm">{{ ic("settings",12,12) }} Налашт.</a>
+      <a href="/logout"   class="btn btn-ghost btn-sm">{{ ic("logout",12,12) }} Вийти</a>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="footer-txt">
+      Курсова робота · 2026<br>
+      <strong>Автор: Марусяк В.В.</strong><br>
+      ЧНУ ім. Ю. Федьковича
+    </div>
+  </div>
+
+</aside>
+
+<div class="main-wrap">
+
+  <!-- Header з логотипом -->
+  <div class="page-header">
+    <img src="/static/chnu_logo.png" class="hdr-logo" alt="ЧНУ"
+         onerror="this.style.display='none'">
+    <div>
+      <div class="hdr-uni-name">ЧНУ ім. Юрія Федьковича</div>
+      <div class="hdr-uni-sub">Система класифікації електронних листів · MailSort</div>
+    </div>
+  </div>
+
+  <div class="main-inner">
+    <main class="main">{% block content %}{% endblock %}</main>
+
+    <!-- Панель новин -->
+    <aside class="news-panel">
+      <div class="news-hdr">
+        <div class="news-hdr-title">
+          {{ ic("rss",13,13) }} Новини ЧНУ
+        </div>
+        <div class="news-hdr-right">
+          <button class="news-ref-btn" onclick="loadNews(true,0)" title="Оновити">
+            {{ ic("refresh",12,12) }}
+          </button>
+          <a href="https://www.chnu.edu.ua/novyny/" target="_blank">chnu.edu.ua</a>
+        </div>
+      </div>
+      <div id="newsContent"><div class="news-status">Завантаження...</div></div>
+      <button class="news-more" id="newsMore" style="display:none" onclick="loadMore()">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        Завантажити ще
+      </button>
+    </aside>
+  </div>
+
+</div>
+</div>
+
+<script>
+// ── Background fade-in on load ────────────────────────────
+(function(){
+  var bg = document.getElementById('bgFullscreen');
+  if (!bg) return;
+  bg.classList.add('fading');
+  window.addEventListener('load', function(){
+    requestAnimationFrame(function(){
+      bg.classList.remove('fading');
+    });
+  });
+  // Fade-out on navigation
+  document.addEventListener('click', function(e){
+    var a = e.target.closest('a');
+    if (!a || !a.href || a.target === '_blank' || a.href.startsWith('#') || e.ctrlKey || e.metaKey) return;
+    var url = new URL(a.href);
+    if (url.origin !== location.origin) return;
+    bg.classList.add('fading');
+  });
+})();
+
+setTimeout(function(){
+  document.querySelectorAll('.flash').forEach(function(el){
+    el.style.transition='opacity .4s';
+    el.style.opacity='0';
+    setTimeout(function(){el.remove()},400);
+  });
+},4000);
+
+// ── Sync (with progress modal) ───────────────────────────
+var _spPoll=null, _spMinimized=false;
+
+function spOpen(){
+  var ov=document.getElementById('spOverlay'); if(!ov)return;
+  ov.classList.add('show'); ov.setAttribute('aria-hidden','false');
+  _spMinimized=false;
+  var modal=document.getElementById('spModal');
+  modal.classList.remove('done','error');
+  document.getElementById('spCloseBtn').style.display='none';
+  document.getElementById('spMinBtn').style.display='';
+  var bar=document.getElementById('spBar');
+  bar.classList.add('indeterminate'); bar.style.width='';
+  document.getElementById('spSaved').textContent='0';
+  document.getElementById('spSkipped').textContent='0';
+  document.getElementById('spErrors').textContent='0';
+  document.getElementById('spCountText').textContent='0 / 0';
+  document.getElementById('spPct').textContent='';
+  document.getElementById('spLast').innerHTML='&nbsp;';
+  document.getElementById('spPhase').textContent='Підключення до сервера…';
+}
+
+function spClose(){
+  var ov=document.getElementById('spOverlay'); if(!ov)return;
+  ov.classList.remove('show'); ov.setAttribute('aria-hidden','true');
+  if(_spPoll){clearInterval(_spPoll);_spPoll=null;}
+}
+
+function spMinimize(){
+  var ov=document.getElementById('spOverlay'); if(!ov)return;
+  ov.classList.remove('show'); _spMinimized=true;
+}
+
+function _escHtml(s){
+  return String(s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function spRender(s){
+  var phase=s.phase||'idle';
+  var total=s.total||0, cur=s.current||0;
+  var saved=s.saved||0, skipped=s.skipped||0, errors=s.errors||0;
+  var phaseTxt={
+    'idle':'Очікування','connecting':'Підключення до сервера…',
+    'scanning':'Сканування поштової скриньки…','running':'Обробка листів…',
+    'done':'Готово','error':'Помилка'
+  }[phase] || phase;
+  if(s.message) phaseTxt = s.message;
+  document.getElementById('spPhase').textContent=phaseTxt;
+
+  var bar=document.getElementById('spBar');
+  if(total>0 && phase!=='connecting'){
+    bar.classList.remove('indeterminate');
+    var pct=Math.min(100, Math.round((cur/total)*100));
+    bar.style.width=pct+'%';
+    document.getElementById('spCountText').textContent=cur+' / '+total;
+    document.getElementById('spPct').textContent=pct+'%';
+  } else {
+    bar.classList.add('indeterminate');
+    document.getElementById('spCountText').textContent='';
+    document.getElementById('spPct').textContent='';
+  }
+  document.getElementById('spSaved').textContent=saved;
+  document.getElementById('spSkipped').textContent=skipped;
+  document.getElementById('spErrors').textContent=errors;
+
+  if(s.last_subject){
+    var cat=s.last_category?' <span class="sp-last-cat">['+_escHtml(s.last_category)+']</span>':'';
+    document.getElementById('spLast').innerHTML=_escHtml(s.last_subject)+cat;
+  }
+  var modal=document.getElementById('spModal');
+  if(phase==='done'){
+    modal.classList.add('done');
+    bar.classList.remove('indeterminate'); bar.style.width='100%';
+    document.getElementById('spCloseBtn').style.display='';
+    document.getElementById('spMinBtn').style.display='none';
+  } else if(phase==='error'){
+    modal.classList.add('error');
+    bar.classList.remove('indeterminate');
+    document.getElementById('spCloseBtn').style.display='';
+    document.getElementById('spMinBtn').style.display='none';
+  }
+}
+
+function spStartPolling(){
+  if(_spPoll)clearInterval(_spPoll);
+  var finishedOnce=false;
+  _spPoll=setInterval(function(){
+    fetch('/api/sync-progress')
+      .then(function(r){return r.json()})
+      .then(function(s){
+        spRender(s);
+        if((s.phase==='done'||s.phase==='error') && !s.running && !finishedOnce){
+          finishedOnce=true;
+          clearInterval(_spPoll);_spPoll=null;
+          updateSyncStatus();
+          softRefreshList();
+        }
+      })
+      .catch(function(){});
+  },500);
+}
+
+function softRefreshList(){
+  var main=document.querySelector('main'); if(!main)return;
+  fetch(window.location.href, {headers:{'X-Requested-With':'softRefresh'}})
+    .then(function(r){return r.text()})
+    .then(function(html){
+      try{
+        var doc=new DOMParser().parseFromString(html,'text/html');
+        var newMain=doc.querySelector('main');
+        if(newMain){
+          main.innerHTML=newMain.innerHTML;
+          if(window.lucide && lucide.createIcons) lucide.createIcons();
+        }
+      }catch(e){}
+    })
+    .catch(function(){});
+}
+
+function manualSync(){
+  var btn=document.getElementById('syncBtn');
+  fetch('/api/sync-progress')
+    .then(function(r){return r.json()})
+    .then(function(s){
+      if(s.running){
+        spOpen(); spRender(s); spStartPolling(); return;
+      }
+      if(btn)btn.disabled=true;
+      spOpen();
+      fetch('/api/sync-now',{method:'POST'})
+        .then(function(r){return r.json()})
+        .then(function(d){
+          if(btn)btn.disabled=false;
+          if(!d.ok){
+            document.getElementById('spPhase').textContent='Помилка: '+(d.error||'');
+            document.getElementById('spModal').classList.add('error');
+            document.getElementById('spCloseBtn').style.display='';
+            document.getElementById('spMinBtn').style.display='none';
+            return;
+          }
+          spStartPolling();
+        })
+        .catch(function(){if(btn)btn.disabled=false;});
+    })
+    .catch(function(){});
+}
+
+function updateSyncStatus(){
+  fetch('/api/sync-status')
+    .then(function(r){return r.json()})
+    .then(function(d){
+      var st=document.getElementById('syncStatus');
+      if(!st||!d.last_sync||!d.last_sync.time)return;
+      st.textContent='Авто: '+d.last_sync.time+(d.last_sync.fetched>0?' +'+d.last_sync.fetched:'');
+      st.style.color=d.last_sync.status==='error'?'var(--red)':'var(--muted)';
+    }).catch(function(){});
+}
+setInterval(updateSyncStatus,15000);
+updateSyncStatus();
+
+// ── Pending corrections badge (sidebar nav) ───────────────
+function updatePendingBadge(){
+  fetch('/api/corrections-stats')
+    .then(function(r){return r.json()})
+    .then(function(d){
+      var el = document.getElementById('mqPendingNav');
+      if(!el) return;
+      if(d && d.pending > 0){
+        el.textContent = d.pending;
+        el.style.display = '';
+      } else {
+        el.style.display = 'none';
+      }
+    })
+    .catch(function(){});
+}
+setInterval(updatePendingBadge, 30000);
+updatePendingBadge();
+
+// ── News ─────────────────────────────────────────────────
+var _allNews=[], _shown=8, _newsLoading=false;
+
+var _toastTimer=null;
+function showToast(msg, type){
+  var t=document.getElementById('newsToast');
+  var ico=document.getElementById('newsToastIco');
+  var msgEl=document.getElementById('newsToastMsg');
+  if(!t) return;
+  if(type==='loading'){
+    ico.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation:spin .7s linear infinite"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>';
+    t.style.borderColor='rgba(78,141,232,.3)';
+  } else if(type==='ok'){
+    ico.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    t.style.borderColor='rgba(46,189,133,.3)';
+  } else {
+    ico.innerHTML='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+    t.style.borderColor='rgba(240,107,107,.3)';
+  }
+  msgEl.textContent=msg;
+  t.style.display='flex';
+  if(_toastTimer) clearTimeout(_toastTimer);
+  if(type!=='loading') _toastTimer=setTimeout(function(){ t.style.display='none'; }, 4000);
+}
+
+function loadNews(force,attempt){
+  if(_newsLoading && !force) return;
+  _newsLoading = true;
+  attempt = attempt || 0;
+  var c=document.getElementById('newsContent');
+  var more=document.getElementById('newsMore');
+  if(!c) return;
+  c.innerHTML='<div class="news-status"><div class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px"></div>Завантаження...</div>';
+  if(more) more.style.display='none';
+  if(force) showToast('Оновлення новин ЧНУ...', 'loading');
+
+  fetch('/api/chnu-news'+(force?'?force=1':''))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      _newsLoading = false;
+      if(d.ok && d.news && d.news.length > 0){
+        _allNews = d.news;
+        _shown = 8;
+        renderNews();
+        if(force) showToast('Новини оновлено: '+d.news.length+' записів', 'ok');
+      } else {
+        // Якщо перша спроба провалилась — одразу пробуємо force
+        if(attempt === 0){
+          setTimeout(function(){ loadNews(true, 1); }, 800);
+          return;
+        }
+        if(force) showToast('Не вдалося оновити новини', 'error');
+        showNewsError(d.error || '');
+      }
+    })
+    .catch(function(e){
+      _newsLoading = false;
+      if(attempt === 0){
+        setTimeout(function(){ loadNews(true, 1); }, 800);
+        return;
+      }
+      if(force) showToast('Помилка: '+String(e), 'error');
+      showNewsError(String(e));
+    });
+}
+
+function showNewsError(errMsg){
+  var c=document.getElementById('newsContent');
+  if(!c) return;
+  c.innerHTML=
+    '<div class="news-status" style="padding:12px 16px;text-align:left">'
+    +'<div style="margin-bottom:8px;font-size:11px;color:var(--muted)">Не вдалося завантажити новини</div>'
+    +'<a href="https://www.chnu.edu.ua/novyny/" target="_blank" '
+    +'style="display:block;color:var(--accent);font-size:12px;margin-bottom:6px">'
+    +'↗ Відкрити новини на сайті ЧНУ</a>'
+    +'<a href="https://www.chnu.edu.ua/novyny/aktualni-novyny/" target="_blank" '
+    +'style="display:block;color:var(--muted);font-size:11px;margin-bottom:10px">'
+    +'↗ Актуальні новини</a>'
+    +'<button onclick="loadNews(true,0)" style="background:none;border:1px solid var(--border);'
+    +'color:var(--muted);padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;font-family:var(--font)">'
+    +'↺ Спробувати ще раз</button>'
+    +'</div>';
+}
+
+function renderNews(){
+  var c=document.getElementById('newsContent');
+  var more=document.getElementById('newsMore');
+  if(!c) return;
+  var slice=_allNews.slice(0,_shown);
+
+  function getCat(link){
+    if(!link) return null;
+    if(link.indexOf('/mizhnarodna')>-1) return {label:'Міжнар.',color:'#a78bfa',bg:'rgba(167,139,250,.12)'};
+    if(link.indexOf('/naukova')>-1||link.indexOf('/nauka')>-1) return {label:'Наука',color:'#34d399',bg:'rgba(52,211,153,.12)'};
+    if(link.indexOf('/osvit')>-1||link.indexOf('/education')>-1) return {label:'Освіта',color:'#60a5fa',bg:'rgba(96,165,250,.12)'};
+    if(link.indexOf('/dokumenty')>-1||link.indexOf('/obhovoren')>-1) return {label:'Документи',color:'#fbbf24',bg:'rgba(251,191,36,.12)'};
+    if(link.indexOf('/priyom')>-1||link.indexOf('/vstup')>-1) return {label:'Вступ',color:'#f87171',bg:'rgba(248,113,113,.12)'};
+    if(link.indexOf('/vakansii')>-1) return {label:'Вакансії',color:'#fb923c',bg:'rgba(251,146,60,.12)'};
+    return {label:'Новини',color:'#4f8ef7',bg:'rgba(79,142,247,.12)'};
+  }
+
+  c.innerHTML=slice.map(function(n){
+    var cat=getCat(n.link);
+    var meta='';
+    if(cat||n.date){
+      meta='<div class="news-item-meta">';
+      if(cat) meta+='<span class="news-cat" style="color:'+cat.color+';background:'+cat.bg+'">'+cat.label+'</span>';
+      if(n.date) meta+='<span class="news-date">'+n.date+'</span>';
+      meta+='</div>';
+    }
+    return '<a class="news-item" href="'+n.link+'" target="_blank" rel="noopener">'
+      +'<div class="news-item-title">'+n.title+'</div>'
+      +meta
+      +'<span class="news-arrow"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></span>'
+      +'</a>';
+  }).join('');
+  if(more) more.style.display=(_shown < _allNews.length)?'flex':'none';
+}
+
+function loadMore(){
+  _shown=Math.min(_shown+8, _allNews.length);
+  renderNews();
+}
+
+loadNews(false);
+
+</script>
+<!-- News article modal -->
+<div class="news-modal-bg" id="newsModalBg" onclick="closeNewsModal(event)">
+  <div class="news-modal">
+    <div class="news-modal-hdr">
+      <span style="font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted2)">Новина ЧНУ</span>
+      <button class="news-modal-close" onclick="closeNewsModal()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="newsModalContent">
+      <div class="news-modal-loading"><div class="spinner"></div> Завантаження...</div>
+    </div>
+    <div class="news-modal-footer">
+      <span id="newsModalDate" style="font-size:11px;color:var(--muted2);font-family:var(--mono)"></span>
+      <a id="newsModalLink" href="#" target="_blank" class="btn btn-ghost" style="font-size:12px;padding:6px 12px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        Відкрити на сайті
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>@keyframes spin{to{transform:rotate(360deg)}}</script>
+{% block scripts %}{% endblock %}
+<!-- News sync toast -->
+<div id="newsToast" style="
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  background:#1a1d22;border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;padding:12px 16px;
+  display:none;align-items:center;gap:10px;
+  box-shadow:0 8px 32px rgba(0,0,0,.5);
+  font-size:12px;color:var(--text);
+  min-width:220px;max-width:300px;
+  transition:opacity .3s;
+">
+  <span id="newsToastIco" style="flex-shrink:0"></span>
+  <span id="newsToastMsg" style="flex:1;line-height:1.4"></span>
+  <button onclick="document.getElementById('newsToast').style.display='none'"
+    style="background:none;border:none;color:var(--muted);cursor:pointer;padding:0;flex-shrink:0;font-size:16px;line-height:1">×</button>
+</div>
+
+<!-- Sync Progress Modal -->
+<div class="sp-overlay" id="spOverlay" aria-hidden="true">
+  <div class="sp-modal" id="spModal" role="dialog" aria-labelledby="spTitle">
+    <div class="sp-title" id="spTitle">
+      <span id="spTitleIco">{{ ic("refresh", 18, 18) }}</span>
+      <span id="spTitleTxt">Синхронізація пошти</span>
+    </div>
+    <div class="sp-phase" id="spPhase">Підключення до сервера…</div>
+    <div class="sp-bar-wrap"><div class="sp-bar indeterminate" id="spBar"></div></div>
+    <div class="sp-counts">
+      <span id="spCountText">0 / 0</span>
+      <span class="sp-pct" id="spPct"></span>
+    </div>
+    <div class="sp-stats">
+      <div class="sp-stat"><div class="sp-stat-val ok" id="spSaved">0</div><div class="sp-stat-lbl">Нових</div></div>
+      <div class="sp-stat"><div class="sp-stat-val mut" id="spSkipped">0</div><div class="sp-stat-lbl">Вже є</div></div>
+      <div class="sp-stat"><div class="sp-stat-val err" id="spErrors">0</div><div class="sp-stat-lbl">Помилок</div></div>
+    </div>
+    <div class="sp-last" id="spLast">&nbsp;</div>
+    <div class="sp-actions">
+      <button class="sp-btn" id="spMinBtn" onclick="spMinimize()">Згорнути</button>
+      <button class="sp-btn primary" id="spCloseBtn" onclick="spClose()" style="display:none">Закрити</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

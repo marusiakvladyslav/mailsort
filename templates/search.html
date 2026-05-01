@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Пошук{% endblock %}
+
+{% block extra_head %}
+<style>
+.search-bar { display: flex; gap: 10px; margin-bottom: 24px; align-items: center; }
+.search-input {
+  flex: 1; background: rgba(20,22,25,.8); border: 1px solid rgba(255,255,255,.1);
+  border-radius: var(--r); color: var(--text);
+  padding: 9px 14px; font-size: 14px; font-family: var(--font);
+  outline: none; transition: border-color .15s; backdrop-filter: blur(4px);
+}
+.search-input:focus { border-color: var(--accent); }
+.search-select {
+  background: rgba(20,22,25,.8); border: 1px solid rgba(255,255,255,.1);
+  border-radius: var(--r); color: var(--text);
+  padding: 9px 10px; font-size: 13px; font-family: var(--font);
+  outline: none; min-width: 180px; backdrop-filter: blur(4px);
+}
+.result-count { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+.result-count strong { color: var(--accent); font-family: var(--mono); }
+.email-list { display: flex; flex-direction: column; gap: 6px; }
+.email-item {
+  background: rgba(20,22,25,.75); border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--r); padding: 14px 18px;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 8px; text-decoration: none; color: var(--text);
+  transition: all .15s; backdrop-filter: blur(6px);
+}
+.email-item:hover { border-color: rgba(78,141,232,.4); background: rgba(78,141,232,.08); text-decoration: none; color: var(--text); transform: translateX(2px); }
+.email-item.unread { border-left: 3px solid var(--accent); }
+.email-subject { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+.email-from    { font-size: 12px; color: var(--muted); }
+.email-meta    { text-align: right; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+mark { background: rgba(78,141,232,.3); color: var(--text); border-radius: 2px; padding: 0 2px; }
+.empty {
+  text-align: center; padding: 60px; color: var(--muted);
+  background: rgba(20,22,25,.6); border: 1px dashed rgba(255,255,255,.08);
+  border-radius: var(--r); backdrop-filter: blur(4px);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">Пошук листів</div>
+<div class="page-sub">Пошук по темі, відправнику та тілу листа</div>
+
+<form method="GET" action="/search" class="search-bar">
+  <input class="search-input" type="text" name="q"
+         value="{{ q }}" placeholder="Введіть запит..." autofocus>
+  <select class="search-select" name="category">
+    <option value="">Всі категорії</option>
+    {% for cat in categories %}
+      <option value="{{ cat.name }}" {% if cat.name == filter_category %}selected{% endif %}>{{ cat.name }}</option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-primary">Знайти</button>
+  {% if q %}
+    <a href="/search" class="btn btn-ghost">×</a>
+  {% endif %}
+</form>
+
+{% if q %}
+  <div class="result-count">
+    Знайдено: <strong>{{ results|length }}</strong> листів
+    {% if filter_category %} в «{{ filter_category }}»{% endif %}
+    за запитом «{{ q }}»
+
+  </div>
+
+  {% if results %}
+    <div class="email-list">
+      {% for em in results %}
+      <a href="/email/{{ em.id }}" class="email-item {% if not em.is_read %}unread{% endif %}">
+        <div>
+          <div class="email-subject">
+            {% if not em.is_read %}<span style="color:var(--accent)">● </span>{% endif %}
+            {{ em.subject | replace(q, '<mark>' ~ q ~ '</mark>') | safe if q else em.subject }}
+          </div>
+          <div class="email-from">{{ em.sender }}</div>
+        </div>
+        <div class="email-meta">
+          <div>{{ em.date[:10] if em.date else '' }}</div>
+          <div style="margin-top:4px;color:var(--muted)">{{ em.category }}</div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty">Нічого не знайдено за запитом «{{ q }}»</div>
+  {% endif %}
+{% else %}
+  <div class="empty" style="padding:40px">Введіть запит для пошуку</div>
+{% endif %}
+{% endblock %}

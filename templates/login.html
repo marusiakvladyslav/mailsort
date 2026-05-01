@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MailSort — Вхід</title>
+  <style>
+    *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0c10;
+      --text: #dde1ea; --muted: #9aa0b4; --muted2: #636878;
+      --accent: #4e8de8; --accent-h: #3a74cc;
+      --red: #e05c5c; --green: #2ebd85;
+      --font: system-ui, -apple-system, sans-serif;
+      --mono: ui-monospace, monospace;
+      --r: 12px; --rs: 7px;
+    }
+
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: var(--font); font-size: 14px;
+      min-height: 100vh; display: flex;
+      align-items: center; justify-content: center;
+      overflow: hidden; position: relative;
+    }
+
+    /* ── Фонові орби ── */
+    .orb {
+      position: fixed; border-radius: 50%;
+      filter: blur(80px); pointer-events: none; z-index: 0;
+    }
+    .orb-1 {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(78,141,232,.18) 0%, transparent 70%);
+      top: -200px; left: -150px;
+      animation: orb-float 8s ease-in-out infinite;
+    }
+    .orb-2 {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(91,79,212,.14) 0%, transparent 70%);
+      bottom: -150px; right: -100px;
+      animation: orb-float 10s ease-in-out infinite reverse;
+    }
+    .orb-3 {
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(46,189,133,.08) 0%, transparent 70%);
+      top: 50%; left: 50%; transform: translate(-50%,-50%);
+      animation: orb-pulse 6s ease-in-out infinite;
+    }
+    @keyframes orb-float {
+      0%,100% { transform: translateY(0) scale(1); }
+      50%      { transform: translateY(-30px) scale(1.05); }
+    }
+    @keyframes orb-pulse {
+      0%,100% { opacity: .6; transform: translate(-50%,-50%) scale(1); }
+      50%      { opacity: 1; transform: translate(-50%,-50%) scale(1.15); }
+    }
+
+    /* ── Сітка ── */
+    .grid {
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(78,141,232,.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(78,141,232,.035) 1px, transparent 1px);
+      background-size: 52px 52px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+    }
+
+    /* ── Частинки ── */
+    .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+    .particle {
+      position: absolute; width: 2px; height: 2px;
+      border-radius: 50%; background: rgba(78,141,232,.5);
+      animation: particle-rise linear infinite;
+    }
+    @keyframes particle-rise {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: .6; }
+      100% { transform: translateY(-20px) scale(1); opacity: 0; }
+    }
+
+    /* ── Контейнер ── */
+    .wrap {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 420px;
+      padding: 20px;
+      animation: wrap-in .7s cubic-bezier(.22,1,.36,1) both;
+    }
+    @keyframes wrap-in {
+      from { opacity: 0; transform: translateY(28px) scale(.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* ── Картка ── */
+    .box {
+      background: rgba(14,16,22,.82);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 18px; padding: 44px 48px;
+      box-shadow:
+        0 40px 100px rgba(0,0,0,.7),
+        0 0 0 1px rgba(255,255,255,.04),
+        inset 0 1px 0 rgba(255,255,255,.06);
+      backdrop-filter: blur(24px);
+      position: relative; overflow: hidden;
+    }
+    /* Блиск зверху */
+    .box::before {
+      content: '';
+      position: absolute; top: 0; left: 20%; right: 20%; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(78,141,232,.6), transparent);
+    }
+
+    /* ── Логотип ── */
+    .logo { text-align: center; margin-bottom: 36px; }
+    .logo-ring {
+      width: 64px; height: 64px; margin: 0 auto 16px;
+      position: relative;
+    }
+    .logo-ring-svg {
+      position: absolute; inset: 0;
+      animation: ring-spin 8s linear infinite;
+    }
+    @keyframes ring-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    .logo-inner {
+      position: absolute; inset: 8px;
+      background: linear-gradient(135deg, #2a5db8, #4e35c4);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 24px rgba(78,141,232,.4);
+    }
+    .logo-inner svg {
+      width: 24px; height: 24px;
+      stroke: #fff; fill: none; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+    .logo h1 {
+      font-size: 24px; font-weight: 600;
+      letter-spacing: -.5px; color: var(--text);
+    }
+    .logo p {
+      color: var(--muted); font-size: 12px; margin-top: 5px;
+      line-height: 1.5;
+    }
+
+    /* ── Поля ── */
+    .field { margin-bottom: 16px; }
+    label {
+      display: block; font-size: 10px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .8px; margin-bottom: 7px;
+      font-weight: 600;
+    }
+    .input-wrap { position: relative; }
+    .input-icon {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--muted2);
+    }
+    .input-icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    input[type=text], input[type=password] {
+      width: 100%;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--rs);
+      color: var(--text); padding: 11px 13px 11px 38px;
+      font-family: var(--font); font-size: 13px;
+      transition: border-color .2s, background .2s, box-shadow .2s;
+      outline: none;
+    }
+    input:focus {
+      border-color: rgba(78,141,232,.6);
+      background: rgba(78,141,232,.05);
+      box-shadow: 0 0 0 3px rgba(78,141,232,.12);
+    }
+    input::placeholder { color: var(--muted2); }
+
+    /* ── Кнопка ── */
+    .btn {
+      width: 100%; padding: 12px; margin-top: 10px;
+      background: linear-gradient(135deg, #3a74cc, #4e35c4);
+      color: #fff; border: none; border-radius: var(--rs);
+      font-family: var(--font); font-size: 14px; font-weight: 500;
+      cursor: pointer; letter-spacing: .2px;
+      position: relative; overflow: hidden;
+      transition: opacity .15s, transform .1s;
+      box-shadow: 0 4px 20px rgba(78,141,232,.35);
+    }
+    .btn::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,.1), transparent);
+      opacity: 0; transition: opacity .2s;
+    }
+    .btn:hover { opacity: .92; }
+    .btn:hover::after { opacity: 1; }
+    .btn:active { transform: scale(.99); }
+
+    /* Shimmer при hover */
+    .btn::before {
+      content: '';
+      position: absolute; top: 0; left: -100%;
+      width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.15), transparent);
+      transition: left .4s;
+    }
+    .btn:hover::before { left: 150%; }
+
+    /* ── Помилка ── */
+    .error {
+      background: rgba(224,92,92,.1);
+      border: 1px solid rgba(224,92,92,.25);
+      color: #f08080; padding: 10px 14px;
+      border-radius: var(--rs); font-size: 12px;
+      margin-bottom: 18px;
+      display: flex; align-items: center; gap: 8px;
+      animation: shake .4s cubic-bezier(.36,.07,.19,.97);
+    }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%     { transform: translateX(-6px); }
+      40%     { transform: translateX(6px); }
+      60%     { transform: translateX(-4px); }
+      80%     { transform: translateX(4px); }
+    }
+    .error svg { flex-shrink: 0; }
+
+    /* ── Підказка ── */
+    .hint {
+      margin-top: 20px; text-align: center;
+      font-size: 11px; color: var(--muted2); line-height: 1.8;
+    }
+    .hint code {
+      font-family: var(--mono); font-size: 10px;
+      background: rgba(255,255,255,.06); padding: 1px 6px;
+      border-radius: 3px; color: var(--muted);
+    }
+
+    /* ── Футер ── */
+    .footer {
+      text-align: center; margin-top: 22px;
+      font-size: 10px; color: rgba(99,104,120,.5);
+      font-family: var(--mono); line-height: 1.9;
+    }
+  </style>
+</head>
+<body>
+
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+<div class="grid"></div>
+<div class="particles" id="particles"></div>
+
+<div class="wrap">
+  <div class="box">
+
+    <div class="logo">
+      <div class="logo-ring">
+        <svg class="logo-ring-svg" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="30" stroke="rgba(78,141,232,.25)" stroke-width="1" stroke-dasharray="4 6" stroke-linecap="round"/>
+        </svg>
+        <div class="logo-inner">
+          <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+        </div>
+      </div>
+      <h1>MailSort</h1>
+      <p>Система сортування корпоративної пошти</p>
+    </div>
+
+    {% if error %}
+    <div class="error">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="POST">
+      <div class="field">
+        <label>Логін</label>
+        <div class="input-wrap">
+          <span class="input-icon"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+          <input type="text" name="username" placeholder="admin" autofocus autocomplete="username">
+        </div>
+      </div>
+      <div class="field">
+        <label>Пароль</label>
+        <div class="input-wrap">
+          <span class="input-icon"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+          <input type="password" name="password" placeholder="••••••••" autocomplete="current-password">
+        </div>
+      </div>
+      <button type="submit" class="btn">Увійти</button>
+    </form>
+
+    <div class="hint">
+      За замовчуванням: <code>admin</code> / <code>admin</code><br>
+      Змінити можна в Налаштуваннях
+    </div>
+  </div>
+
+  <div class="footer">
+    ЧНУ ім. Юрія Федьковича · Курсова робота 2026<br>
+    Марусяк В.В.
+  </div>
+</div>
+
+<script>
+// Частинки
+(function(){
+  var c = document.getElementById('particles');
+  for(var i = 0; i < 18; i++){
+    var p = document.createElement('div');
+    p.className = 'particle';
+    p.style.left = (Math.random() * 100) + '%';
+    p.style.width = p.style.height = (Math.random() * 3 + 1) + 'px';
+    p.style.animationDuration = (Math.random() * 12 + 8) + 's';
+    p.style.animationDelay = (Math.random() * 10) + 's';
+    p.style.opacity = Math.random() * 0.6 + 0.2;
+    c.appendChild(p);
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Інструкція{% endblock %}
+
+{% block extra_head %}
+<style>
+.help-section {
+  background: rgba(20,22,25,.80);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: var(--r);
+  padding: 24px 28px;
+  margin-bottom: 20px;
+  backdrop-filter: blur(8px);
+}
+.help-section h2 {
+  font-size: 14px; font-weight: 600; color: var(--text);
+  margin: 0 0 16px; display: flex; align-items: center; gap: 10px;
+}
+.help-section h2 .step-num {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.help-section p, .help-section li {
+  font-size: 13px; color: var(--muted); line-height: 1.8; margin: 0 0 8px;
+}
+.help-section ul { padding-left: 18px; margin: 8px 0; }
+.help-section li { margin-bottom: 4px; }
+.help-section strong { color: var(--text); }
+.help-section code {
+  font-family: var(--mono); font-size: 12px;
+  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 4px; padding: 2px 7px; color: #a5d8ff;
+}
+.help-section a { color: var(--accent); text-decoration: none; }
+.help-section a:hover { text-decoration: underline; }
+
+.tip-box {
+  background: rgba(78,141,232,.08); border: 1px solid rgba(78,141,232,.2);
+  border-radius: var(--rs); padding: 12px 16px; margin-top: 12px;
+  font-size: 12px; color: rgba(180,200,240,.9); line-height: 1.7;
+}
+.tip-box strong { color: #7ab8f5; }
+.warn-box {
+  background: rgba(251,191,36,.07); border: 1px solid rgba(251,191,36,.2);
+  border-radius: var(--rs); padding: 12px 16px; margin-top: 12px;
+  font-size: 12px; color: rgba(251,200,80,.9); line-height: 1.7;
+}
+.warn-box strong { color: #fbbf24; }
+
+.steps-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 4px;
+}
+@media (max-width: 700px) { .steps-grid { grid-template-columns: 1fr; } }
+
+.step-card {
+  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
+  border-radius: var(--rs); padding: 14px 16px;
+}
+.step-card-title {
+  font-size: 11px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: .7px; color: var(--muted2); margin-bottom: 8px;
+}
+
+.btn-go {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--accent); color: #fff !important; border: none;
+  border-radius: var(--rs); padding: 9px 18px;
+  font-size: 13px; font-weight: 500; cursor: pointer;
+  text-decoration: none !important; transition: opacity .15s; margin-top: 4px;
+}
+.btn-go:hover { opacity: .85; color: #fff !important; }
+.btn-go svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">Інструкція з підключення пошти</div>
+<div class="page-sub">Покрокове налаштування Gmail для автоматичної класифікації листів</div>
+
+<!-- Крок 1 -->
+<div class="help-section">
+  <h2><span class="step-num">1</span> Увімкніть двофакторну автентифікацію в Google</h2>
+  <p>App Password (пароль застосунку) можна створити лише якщо у вашому акаунті Google ввімкнена двофакторна автентифікація.</p>
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-card-title">Як увімкнути</div>
+      <ul>
+        <li>Відкрийте <a href="https://myaccount.google.com/security" target="_blank">myaccount.google.com/security</a></li>
+        <li>Знайдіть розділ <strong>«Двоетапна перевірка»</strong></li>
+        <li>Натисніть <strong>«Почати»</strong> і дотримуйтесь інструкцій</li>
+        <li>Підтвердіть через телефон або SMS</li>
+      </ul>
+    </div>
+    <div class="step-card">
+      <div class="step-card-title">Навіщо це потрібно</div>
+      <p style="margin:0">Google не дозволяє стороннім програмам використовувати основний пароль. App Password — це спеціальний 16-символьний пароль <strong>тільки для цієї програми</strong>, який можна будь-коли відкликати.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Крок 2 -->
+<div class="help-section">
+  <h2><span class="step-num">2</span> Створіть App Password (пароль застосунку)</h2>
+  <p>Це пароль який MailSort використовуватиме для читання вашої пошти через IMAP.</p>
+  <ul>
+    <li>Перейдіть на <a href="https://myaccount.google.com/apppasswords" target="_blank"><strong>myaccount.google.com/apppasswords</strong></a></li>
+    <li>У полі <strong>«Назва застосунку»</strong> введіть <code>MailSort</code> (будь-яку назву)</li>
+    <li>Натисніть <strong>«Створити»</strong></li>
+    <li>Скопіюйте <strong>16-символьний пароль</strong> (вигляд: <code>xxxx xxxx xxxx xxxx</code>)</li>
+  </ul>
+  <div class="warn-box">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> <strong>Важливо:</strong> пароль показується лише один раз. Збережіть його або одразу вставте в налаштування MailSort. Пробіли між групами можна не вводити.
+  </div>
+</div>
+
+<!-- Крок 3 -->
+<div class="help-section">
+  <h2><span class="step-num">3</span> Введіть дані в налаштуваннях MailSort</h2>
+  <p>Перейдіть у <strong>Налаштування</strong> і заповніть такі поля:</p>
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-card-title">Gmail</div>
+      <ul>
+        <li><strong>IMAP сервер:</strong> <code>imap.gmail.com</code></li>
+        <li><strong>IMAP порт:</strong> <code>993</code></li>
+        <li><strong>Email:</strong> <code>ваш.email@gmail.com</code></li>
+        <li><strong>Пароль:</strong> App Password з кроку 2</li>
+      </ul>
+    </div>
+    <div class="step-card">
+      <div class="step-card-title">Корпоративна пошта ЧНУ</div>
+      <ul>
+        <li><strong>IMAP сервер:</strong> <code>imap.gmail.com</code></li>
+        <li><strong>IMAP порт:</strong> <code>993</code></li>
+        <li><strong>Email:</strong> <code>ваш.email@chnu.edu.ua</code></li>
+        <li><strong>Пароль:</strong> App Password Google-акаунту ЧНУ</li>
+      </ul>
+    </div>
+  </div>
+  <div class="tip-box">
+    <strong>Порада:</strong> Пошта ЧНУ (<code>@chnu.edu.ua</code>) працює на Google Workspace — налаштування IMAP такі самі як для звичайного Gmail. App Password потрібно створити в акаунті Google університету.
+  </div>
+  <div style="margin-top:16px">
+    <a href="/settings" class="btn-go">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Перейти до Налаштувань
+    </a>
+  </div>
+</div>
+
+<!-- Крок 4 -->
+<div class="help-section">
+  <h2><span class="step-num">4</span> Отримайте листи</h2>
+  <p>Після збереження налаштувань натисніть <strong>«Синхронізувати»</strong> у бічній панелі — система завантажить листи і автоматично класифікує їх по категоріях.</p>
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-card-title">Автосинхронізація</div>
+      <p style="margin:0">У налаштуваннях можна задати <strong>інтервал</strong> автоматичної перевірки пошти (наприклад, кожні 5 хвилин). Тоді нові листи з'являтимуться автоматично.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-card-title">Якщо не підключається</div>
+      <ul>
+        <li>Перевірте чи правильний App Password</li>
+        <li>Переконайтеся що IMAP увімкнено в Gmail: <strong>Налаштування → Переадресація та POP/IMAP</strong></li>
+        <li>Спробуйте перестворити App Password</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Додатково -->
+<div class="help-section">
+  <h2>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    Додаткова інформація
+  </h2>
+  <ul>
+    <li><strong>Пароль зберігається локально</strong> у базі даних на вашому комп'ютері і нікуди не передається.</li>
+    <li><strong>Класифікація відбувається локально</strong> — листи не надсилаються на зовнішні сервери.</li>
+    <li><strong>App Password можна відкликати</strong> будь-коли на <a href="https://myaccount.google.com/apppasswords" target="_blank">myaccount.google.com/apppasswords</a> — це не вплине на основний пароль Google.</li>
+    <li><strong>Демо-режим</strong> — якщо хочете протестувати систему без реальної пошти, натисніть «Демо-дані» в бічній панелі.</li>
+  </ul>
+</div>
+{% endblock %}

@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+{% block title %}Якість моделі{% endblock %}
+
+{% block extra_head %}
+<style>
+.mq-wrap{display:grid;gap:20px;max-width:1200px}
+.mq-card{background:rgba(20,22,25,.78);border:1px solid rgba(255,255,255,.08);border-radius:var(--r);padding:22px 26px;backdrop-filter:blur(8px)}
+.mq-title{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.mq-title svg{color:var(--accent)}
+.mq-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.mq-metric{background:rgba(15,18,22,.6);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:14px 16px;text-align:center}
+.mq-metric .v{font-size:28px;font-weight:600;font-family:var(--mono);color:var(--accent);line-height:1}
+.mq-metric .v.ok{color:var(--green)}
+.mq-metric .v.warn{color:#e6a13a}
+.mq-metric .v.mut{color:var(--muted)}
+.mq-metric .l{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:6px}
+
+/* Retrain panel */
+.mq-retrain{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.mq-retrain-info{flex:1;min-width:220px}
+.mq-retrain-badge{display:inline-block;background:rgba(78,141,232,.15);border:1px solid rgba(78,141,232,.3);color:var(--accent);font-size:12px;padding:3px 9px;border-radius:12px;margin-left:6px;font-family:var(--mono)}
+.mq-retrain-badge.zero{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1);color:var(--muted)}
+.btn-retrain{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;font-family:inherit}
+.btn-retrain:hover{background:var(--accent-h)}
+.btn-retrain:disabled{opacity:.55;cursor:not-allowed}
+.mq-retrain-status{font-size:12px;color:var(--muted);font-family:var(--mono);min-height:18px;margin-top:10px}
+.mq-retrain-status.done{color:var(--green)}
+.mq-retrain-status.error{color:var(--red)}
+
+/* Per-class table */
+.mq-pc{width:100%;border-collapse:collapse;font-size:13px}
+.mq-pc th,.mq-pc td{padding:8px 10px;text-align:center;border-bottom:1px solid rgba(255,255,255,.06)}
+.mq-pc th{color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.5px;text-align:left}
+.mq-pc th:not(:first-child){text-align:center}
+.mq-pc td:first-child{text-align:left;font-weight:500}
+.mq-pc td.num{font-family:var(--mono)}
+.mq-bar{display:inline-block;height:6px;background:var(--accent);border-radius:3px;vertical-align:middle;margin-left:4px}
+
+/* Confusion matrix */
+.mq-cm-wrap{overflow-x:auto;margin-top:6px}
+.mq-cm{border-collapse:collapse;font-size:12px;font-family:var(--mono)}
+.mq-cm th,.mq-cm td{padding:6px 8px;text-align:center;border:1px solid rgba(255,255,255,.08)}
+.mq-cm th{color:var(--muted);font-weight:500;writing-mode:horizontal-tb;font-size:10px}
+.mq-cm th.row-h{text-align:right;color:var(--muted);font-weight:500;font-size:11px;padding-right:10px;border:none}
+.mq-cm th.diag{color:var(--muted2);font-size:9px;font-style:italic}
+.mq-cm td.cell{min-width:48px;color:#fff}
+.mq-cm td.cell.zero{background:rgba(255,255,255,.02);color:var(--muted2)}
+
+/* Mistakes */
+.mq-mist{list-style:none;padding:0;margin:0}
+.mq-mist li{background:rgba(15,18,22,.55);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:10px 13px;margin-bottom:8px;font-size:12px}
+.mq-mist .t{color:var(--text);margin-bottom:5px;line-height:1.5}
+.mq-mist .m{color:var(--muted);font-family:var(--mono);font-size:11px}
+.mq-mist .m .true{color:var(--green)}
+.mq-mist .m .pred{color:var(--red)}
+.mq-mist .m .conf{color:#e6a13a}
+
+/* Versions table */
+.mq-vers{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mono)}
+.mq-vers th,.mq-vers td{padding:7px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+.mq-vers th{color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.5px;font-family:inherit}
+.mq-vers .delta-plus{color:var(--green)}
+.mq-vers .delta-minus{color:var(--red)}
+.mq-vers .delta-zero{color:var(--muted)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">
+  {{ ic("activity", 18, 18) }} Якість моделі
+</div>
+
+<div class="mq-wrap">
+
+  {# ─── Перенавчання ──────────────────────────────────────── #}
+  <div class="mq-card">
+    <div class="mq-title">{{ ic("refresh-cw", 14, 14) }} Активне навчання</div>
+    <div class="mq-retrain">
+      <div class="mq-retrain-info">
+        Усього корекцій від користувача: <strong>{{ corr_stats.total }}</strong>
+        <span class="mq-retrain-badge {% if corr_stats.pending == 0 %}zero{% endif %}" id="mqPendingBadge">
+          {{ corr_stats.pending }} очікують перенавчання
+        </span>
+        <div style="font-size:11px;color:var(--muted);margin-top:6px">
+          Кожне ручне перекласифікування листа зберігається як приклад для моделі.
+          Натисніть «Перенавчити», щоб модель врахувала ваші виправлення.
+        </div>
+      </div>
+      <button class="btn-retrain" id="mqRetrainBtn" onclick="mqRetrain()">
+        {{ ic("zap", 14, 14) }} Перенавчити модель
+      </button>
+    </div>
+    <div class="mq-retrain-status" id="mqRetrainStatus"></div>
+  </div>
+
+  {# ─── Загальні метрики ─────────────────────────────────── #}
+  <div class="mq-card">
+    <div class="mq-title">{{ ic("target", 14, 14) }} Поточна якість на hold-out вибірці</div>
+    <div class="mq-metrics">
+      <div class="mq-metric">
+        <div class="v ok">{{ "%.3f"|format(diag.accuracy or 0) }}</div>
+        <div class="l">Accuracy</div>
+      </div>
+      <div class="mq-metric">
+        <div class="v ok">{{ "%.3f"|format(diag.f1_weighted or 0) }}</div>
+        <div class="l">F1 (weighted)</div>
+      </div>
+      <div class="mq-metric">
+        <div class="v warn">{{ "%.2f"|format(threshold or 0.30) }}</div>
+        <div class="l">Поріг впевненості</div>
+      </div>
+      <div class="mq-metric">
+        <div class="v mut">{{ diag.test_size or 0 }} / {{ diag.train_size or 0 }}</div>
+        <div class="l">Test / Train</div>
+      </div>
+    </div>
+    {% if diag.error %}
+      <div style="color:var(--red);font-size:12px;margin-top:10px;font-family:var(--mono)">
+        {{ diag.error }}
+      </div>
+    {% endif %}
+  </div>
+
+  {# ─── Метрики по категоріях ─────────────────────────────── #}
+  {% if diag.per_class %}
+  <div class="mq-card">
+    <div class="mq-title">{{ ic("bar-chart-2", 14, 14) }} Метрики по категоріях</div>
+    <table class="mq-pc">
+      <thead>
+        <tr>
+          <th>Категорія</th>
+          <th>Precision</th>
+          <th>Recall</th>
+          <th>F1-score</th>
+          <th>Support</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for label, m in diag.per_class.items() %}
+        <tr>
+          <td>{{ label }}</td>
+          <td class="num">
+            {{ "%.2f"|format(m["precision"]) }}
+            <span class="mq-bar" style="width:{{ (m['precision']*60)|int }}px"></span>
+          </td>
+          <td class="num">{{ "%.2f"|format(m["recall"]) }}</td>
+          <td class="num">{{ "%.2f"|format(m["f1-score"]) }}</td>
+          <td class="num">{{ m["support"]|int }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {# ─── Матриця помилок ─────────────────────────────────── #}
+  {% if diag.matrix and diag.labels %}
+  {% set mx = namespace(v=0) %}
+  {% for row in diag.matrix %}{% for c in row %}{% if c > mx.v %}{% set mx.v = c %}{% endif %}{% endfor %}{% endfor %}
+  <div class="mq-card">
+    <div class="mq-title">{{ ic("grid", 14, 14) }} Матриця помилок</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+      Рядок — справжня категорія, стовпець — передбачена. Діагональ = правильні передбачення.
+    </div>
+    <div class="mq-cm-wrap">
+      <table class="mq-cm">
+        <thead>
+          <tr>
+            <th></th>
+            {% for l in diag.labels %}<th>{{ l }}</th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in diag.matrix %}
+          <tr>
+            <th class="row-h">{{ diag.labels[loop.index0] }}</th>
+            {% for v in row %}
+              {% set ratio = (v / mx.v) if mx.v else 0 %}
+              {% set is_diag = (loop.index0 == loop.revindex0 * 0 + (loop.index0)) %}
+              <td class="cell {% if v == 0 %}zero{% endif %}"
+                  style="background:rgba(78,141,232,{{ '%.2f'|format(ratio * 0.85) }})">
+                {{ v }}
+              </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ─── Впевнені помилки ─────────────────────────────────── #}
+  {% if diag.top_mistakes %}
+  <div class="mq-card">
+    <div class="mq-title">{{ ic("alert-triangle", 14, 14) }} Найбільш впевнені помилки</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+      Приклади, де модель помилилася з високою впевненістю. Часто показують,
+      що саме треба додати до корекцій.
+    </div>
+    <ul class="mq-mist">
+      {% for m in diag.top_mistakes %}
+      <li>
+        <div class="t">«{{ m.text }}»</div>
+        <div class="m">
+          <span class="true">правильно: {{ m.true }}</span> &nbsp;·&nbsp;
+          <span class="pred">передбачено: {{ m.pred }}</span> &nbsp;·&nbsp;
+          <span class="conf">confidence {{ "%.0f"|format(m.confidence * 100) }}%</span>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {# ─── Chi-square маркери категорій ─────────────────────── #}
+  {% if markers %}
+  <div class="mq-card">
+    <div class="mq-title">{{ ic("zap", 14, 14) }} Маркери категорій (chi-square)</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px">
+      Слова, що найсильніше пов'язані з кожною категорією за результатами chi-square feature selection.
+      Якщо у листі знаходиться маркер категорії X, імовірність proba[X] підвищується на величину до {{ "%.2f"|format(0.20) }}
+      (гібридна класифікація: ML + rule-based).
+    </div>
+    {% for cls, words in markers.items() %}
+    <div style="margin-bottom:10px">
+      <div style="font-size:12px;color:var(--text);font-weight:500;margin-bottom:4px">{{ cls }}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px">
+        {% for w in words %}
+          <span style="background:rgba(78,141,232,.12);border:1px solid rgba(78,141,232,.2);color:var(--accent);font-size:11px;padding:2px 8px;border-radius:10px;font-family:var(--mono)">{{ w }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# ─── Історія версій ─────────────────────────────────── #}
+  {% if versions %}
+  <div class="mq-card">
+    <div class="mq-title">{{ ic("clock", 14, 14) }} Історія версій моделі</div>
+    <table class="mq-vers">
+      <thead>
+        <tr>
+          <th>Дата</th>
+          <th>Модель</th>
+          <th>Корпус</th>
+          <th>Корекцій</th>
+          <th>Accuracy</th>
+          <th>F1-weighted</th>
+          <th>Δ F1</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in versions %}
+          {% set prev = versions[loop.index0 + 1] if loop.index0 + 1 < versions|length else None %}
+          {% set delta = (v.f1_weighted - prev.f1_weighted) if prev else 0 %}
+          <tr>
+            <td>{{ v.trained_at[:16] if v.trained_at else "—" }}</td>
+            <td>{{ v.model_name or "—" }}</td>
+            <td>{{ v.n_samples }}</td>
+            <td>{{ v.n_corrections }}</td>
+            <td>{{ "%.3f"|format(v.accuracy or 0) }}</td>
+            <td>{{ "%.3f"|format(v.f1_weighted or 0) }}</td>
+            <td>
+              {% if prev %}
+                {% if delta > 0.001 %}
+                  <span class="delta-plus">+{{ "%.3f"|format(delta) }}</span>
+                {% elif delta < -0.001 %}
+                  <span class="delta-minus">{{ "%.3f"|format(delta) }}</span>
+                {% else %}
+                  <span class="delta-zero">≈0</span>
+                {% endif %}
+              {% else %}
+                <span class="delta-zero">—</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var _mqPoll = null;
+
+function mqRetrain(){
+  var btn  = document.getElementById('mqRetrainBtn');
+  var stat = document.getElementById('mqRetrainStatus');
+  btn.disabled = true;
+  stat.className = 'mq-retrain-status';
+  stat.textContent = 'Запуск…';
+  fetch('/api/retrain', {method:'POST'})
+    .then(function(r){return r.json()})
+    .then(function(d){
+      if(!d.ok){
+        stat.className = 'mq-retrain-status error';
+        stat.textContent = d.error || 'Помилка';
+        btn.disabled = false;
+        return;
+      }
+      mqStartPolling();
+    })
+    .catch(function(e){
+      stat.className = 'mq-retrain-status error';
+      stat.textContent = String(e);
+      btn.disabled = false;
+    });
+}
+
+function mqStartPolling(){
+  if(_mqPoll) clearInterval(_mqPoll);
+  _mqPoll = setInterval(function(){
+    fetch('/api/retrain-progress')
+      .then(function(r){return r.json()})
+      .then(function(s){
+        var stat = document.getElementById('mqRetrainStatus');
+        var btn  = document.getElementById('mqRetrainBtn');
+        if(s.phase === 'running'){
+          stat.className = 'mq-retrain-status';
+          stat.textContent = s.message || 'Навчання…';
+        } else if(s.phase === 'done'){
+          clearInterval(_mqPoll); _mqPoll = null;
+          stat.className = 'mq-retrain-status done';
+          stat.textContent = s.message || 'Готово';
+          btn.disabled = false;
+          // Оновлюємо бейдж і через секунду перезавантажуємо сторінку,
+          // щоб побачити нові метрики та історію версій
+          setTimeout(function(){ location.reload() }, 900);
+        } else if(s.phase === 'error'){
+          clearInterval(_mqPoll); _mqPoll = null;
+          stat.className = 'mq-retrain-status error';
+          stat.textContent = 'Помилка: ' + (s.message || '');
+          btn.disabled = false;
+        }
+      })
+      .catch(function(){});
+  }, 600);
+}
+
+// Якщо перенавчання вже йде (наприклад, запустили і перезавантажили сторінку) — підхопимо
+fetch('/api/retrain-progress')
+  .then(function(r){return r.json()})
+  .then(function(s){
+    if(s.running){
+      document.getElementById('mqRetrainBtn').disabled = true;
+      mqStartPolling();
+    }
+  })
+  .catch(function(){});
+</script>
+{% endblock %}

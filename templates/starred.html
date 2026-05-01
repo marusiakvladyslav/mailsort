@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Важливі{% endblock %}
+
+{% block extra_head %}
+<style>
+.email-list { display: flex; flex-direction: column; gap: 6px; }
+.email-item {
+  background: rgba(20,22,25,.75); border: 1px solid rgba(255,255,255,.07);
+  border-radius: var(--r); padding: 14px 18px;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 8px; color: var(--text); transition: all .15s;
+  backdrop-filter: blur(6px);
+}
+.email-item:hover { border-color: rgba(251,191,36,.3); background: rgba(251,191,36,.05); }
+.email-item.unread { border-left: 3px solid var(--accent); }
+.email-subject { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+.email-from    { font-size: 12px; color: var(--muted); }
+.email-meta    { text-align: right; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.star-btn { background: none; border: none; cursor: pointer; color: #fbbf24;
+  padding: 0 4px; line-height: 1; transition: transform .15s; }
+.star-btn:hover { transform: scale(1.2); }
+.cat-badge {
+  display: inline-block; font-size: 10px; padding: 2px 7px;
+  border-radius: 4px; background: rgba(78,141,232,.12);
+  color: var(--accent); font-family: var(--mono); margin-top: 4px;
+}
+.empty {
+  text-align: center; padding: 80px 20px; color: var(--muted);
+  background: rgba(20,22,25,.6); border: 1px dashed rgba(255,255,255,.08);
+  border-radius: var(--r); backdrop-filter: blur(4px);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">Важливі листи</div>
+<div class="page-sub">{{ emails|length }} позначених листів</div>
+
+{% if emails %}
+  <div class="email-list">
+    {% for em in emails %}
+    <div class="email-item {% if not em.is_read %}unread{% endif %}">
+      <a href="/email/{{ em.id }}" style="text-decoration:none;color:inherit;display:contents">
+        <div>
+          <div class="email-subject">
+            {% if not em.is_read %}<span style="color:var(--accent)">● </span>{% endif %}
+            {{ em.subject or '(без теми)' }}
+          </div>
+          <div class="email-from">{{ em.sender }}</div>
+          <span class="cat-badge">{{ em.category }}</span>
+        </div>
+      </a>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <div class="email-meta">{{ em.date[:10] if em.date else '' }}</div>
+        <form method="POST" action="/toggle-star/{{ em.id }}" style="margin:0">
+          <input type="hidden" name="next" value="/starred">
+          <button type="submit" class="star-btn" title="Зняти зірочку">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);margin-bottom:12px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    <p style="margin-bottom:8px">Важливих листів ще немає</p>
+    <p style="font-size:12px">Натисніть <svg width="13" height="13" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin:0 2px"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> на будь-якому листі щоб позначити його</p>
+  </div>
+{% endif %}
+{% endblock %}

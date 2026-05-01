@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}{{ category }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .email-list { display: flex; flex-direction: column; gap: 6px; }
+  .email-item {
+    background: rgba(20,22,25,.75);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: var(--r);
+    padding: 13px 18px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    text-decoration: none;
+    color: var(--text);
+    transition: all .15s;
+    position: relative;
+    backdrop-filter: blur(6px);
+  }
+  .email-item:hover {
+    border-color: rgba(78,141,232,.4);
+    background: rgba(78,141,232,.08);
+    text-decoration: none;
+    color: var(--text);
+    transform: translateX(2px);
+  }
+  .email-item.unread {
+    border-left: 3px solid var(--accent);
+    background: rgba(78,141,232,.06);
+  }
+  .email-subject { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+  .email-from    { font-size: 12px; color: var(--muted); }
+  .email-meta    { text-align: right; font-size: 11px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+  .conf-bar {
+    display: inline-block;
+    width: 40px; height: 3px;
+    background: rgba(255,255,255,.08);
+    border-radius: 2px;
+    overflow: hidden;
+    vertical-align: middle;
+  }
+  .conf-fill { height: 100%; background: var(--green); border-radius: 2px; }
+  .empty {
+    text-align: center; padding: 60px; color: var(--muted);
+    background: rgba(20,22,25,.6); border: 1px dashed rgba(255,255,255,.08);
+    border-radius: var(--r); backdrop-filter: blur(4px);
+  }
+  .star-inline { background:none;border:none;cursor:pointer;
+    padding:0 2px;opacity:.4;transition:opacity .15s;color:var(--text); }
+  .star-inline.on { opacity:1;color:#fbbf24; }
+  .star-inline:hover { opacity:1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+  <a href="/" style="color:var(--muted);font-size:13px">← Назад</a>
+</div>
+<div class="page-title">{{ category }}</div>
+<div class="page-sub">{{ emails|length }} листів в цій категорії</div>
+
+{% if emails %}
+  <div class="email-list">
+    {% for em in emails %}
+    <a href="/email/{{ em.id }}" class="email-item {% if not em.is_read %}unread{% endif %}">
+      <div>
+        <div class="email-subject">
+          {% if not em.is_read %}<span style="color:var(--accent)">● </span>{% endif %}
+          {{ em.subject or '(без теми)' }}
+        </div>
+        <div class="email-from">{{ em.sender }}</div>
+      </div>
+      <div class="email-meta" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+        <div>{{ em.date[:10] if em.date else '' }}</div>
+        <div>
+          <span class="conf-bar"><span class="conf-fill" style="width:{{ (em.confidence * 100)|int }}%"></span></span>
+          {{ (em.confidence * 100)|int }}%
+        </div>
+        <form method="POST" action="/toggle-star/{{ em.id }}" style="margin:0">
+          <input type="hidden" name="next" value="/category/{{ category }}">
+          <button type="submit" class="star-inline {% if em.is_starred %}on{% endif %}"
+                  title="{{ 'Зняти' if em.is_starred else 'Позначити' }}">
+            {% if em.is_starred %}<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>{% else %}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>{% endif %}
+          </button>
+        </form>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty">Листів в цій категорії немає</div>
+{% endif %}
+{% endblock %}
