@@ -215,7 +215,9 @@ DEMO_EMAILS = [
      "date":"2024-11-10T14:00:00"},
 ]
 
+from werkzeug.middleware.proxy_fix import ProxyFix
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = SECRET_KEY
 app.config["SESSION_PERMANENT"] = False
 app.jinja_env.filters["render_body"] = _render_body
