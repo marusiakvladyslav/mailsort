@@ -37,10 +37,10 @@
   --text:#1a1d24;--muted:#5b6171;--muted2:#878d9a;
   --accent:#3a74cc;--accent-h:#2c5fb0;
   --green:#22a578;--red:#cb4848;
-  --sidebar-bg:rgba(248,249,251,.92);
-  --news-bg:rgba(248,249,251,.85);
-  --header-bg:rgba(255,255,255,.85);
-  --card-bg:rgba(255,255,255,.88);
+  --sidebar-bg:rgba(255,255,255,.95);
+  --news-bg:rgba(255,255,255,.92);
+  --header-bg:rgba(255,255,255,.92);
+  --card-bg:rgba(255,255,255,.95);
   --bg-overlay:rgba(245,246,248,.78);
   --font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
   --r:10px;--rs:6px
@@ -71,6 +71,17 @@ a:hover{text-decoration:underline}
 [data-theme="dark"] .theme-toggle .icon-moon{display:none}
 [data-theme="light"] .theme-toggle .icon-sun{display:none}
 [data-theme="light"] .theme-toggle .icon-moon{display:inline-block}
+
+/* Logout button in header */
+.btn-logout-hdr{
+  display:inline-flex;align-items:center;gap:5px;
+  background:rgba(224,92,92,.08);border:1px solid rgba(224,92,92,.2);
+  color:var(--red);padding:6px 12px;border-radius:99px;
+  font-size:11px;font-weight:500;cursor:pointer;
+  text-decoration:none !important;transition:all .15s;
+}
+.btn-logout-hdr:hover{background:rgba(224,92,92,.15);text-decoration:none !important}
+.btn-logout-hdr svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
 
 /* Logo block */
 .logo{border-bottom:1px solid var(--border)}
@@ -189,6 +200,37 @@ a:hover{text-decoration:underline}
   backdrop-filter:blur(0px);
 }
 .bg-fullscreen.fading{opacity:0}
+[data-theme="light"] .bg-fullscreen{opacity:.15}
+
+/* Light theme: override hardcoded dark backgrounds in child templates */
+[data-theme="light"] .card,
+[data-theme="light"] .help-section,
+[data-theme="light"] .settings-card,
+[data-theme="light"] .spam-card,
+[data-theme="light"] .cat-card,
+[data-theme="light"] .search-results,
+[data-theme="light"] .stat-card,
+[data-theme="light"] .stat-card-big,
+[data-theme="light"] .email-table,
+[data-theme="light"] .email-row,
+[data-theme="light"] .empty-state,
+[data-theme="light"] .step-card,
+[data-theme="light"] .tip-box,
+[data-theme="light"] .warn-box {
+  background:var(--card-bg) !important;
+  border-color:var(--border) !important;
+  color:var(--text) !important;
+}
+[data-theme="light"] .page-sub{color:var(--muted) !important;text-shadow:none !important}
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea{
+  background:var(--bg3) !important;color:var(--text) !important;
+  border-color:var(--border) !important;
+}
+[data-theme="light"] .news-modal{background:var(--bg2) !important;border-color:var(--border) !important}
+[data-theme="light"] .sp-modal{background:var(--bg2) !important;border-color:var(--border) !important}
+[data-theme="light"] .bg-fullscreen{display:none}
 
 /* Main content */
 .main-inner{display:flex;flex:1;overflow:hidden;position:relative;z-index:1}
@@ -395,7 +437,7 @@ a:hover{text-decoration:underline}
 
   <div class="nav-sec">
     <div class="nav-lbl">Навігація</div>
-    <a href="/" class="nl {% if request.path=='/' %}active{% endif %}">
+    <a href="/" class="nl {% if request.path=='/' or request.path=='/dashboard' %}active{% endif %}">
       <span class="nl-left">{{ ic("dashboard") }} Огляд</span>
     </a>
     <a href="/starred" class="nl {% if request.path=='/starred' %}active{% endif %}">
@@ -491,6 +533,12 @@ a:hover{text-decoration:underline}
       <span class="icon-moon">{{ ic("moon",13,13) }}</span>
       <span class="theme-label">Тема</span>
     </button>
+    <a href="/logout" class="theme-toggle" style="text-decoration:none" title="Вийти з акаунту">
+      {{ ic("logout",13,13) }} Вийти
+    </a>
+    <a href="/logout" class="btn-logout-hdr" title="Вийти">
+      {{ ic("logout",14,14) }} Вийти
+    </a>
   </div>
 
   <div class="main-inner">

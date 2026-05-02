@@ -824,9 +824,16 @@ def api_stats():
     return jsonify(get_stats())
 
 
+_MODEL_STATS_CACHE = {"data": None, "ts": 0}
+
 @app.route("/api/model-stats")
 @login_required
 def api_model_stats():
+    import time
+    now = time.time()
+    if _MODEL_STATS_CACHE["data"] and (now - _MODEL_STATS_CACHE["ts"]) < 300:
+        return jsonify(_MODEL_STATS_CACHE["data"])
+
     from classifier import TRAINING_DATA, MODELS, CONFIDENCE_THRESHOLD
     from preprocessor import preprocess
     from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
@@ -859,7 +866,7 @@ def api_model_stats():
     cm      = confusion_matrix(y_te, y_pred, labels=cats).tolist()
     report  = classification_report(y_te, y_pred, output_dict=True)
 
-    return jsonify({
+    result = {
         "cv_results":       cv_results,
         "best_model":       best_name,
         "categories":       cats,
@@ -870,7 +877,10 @@ def api_model_stats():
         "overall_f1":     round(float(report["weighted avg"]["f1-score"]), 3),
         "threshold":      CONFIDENCE_THRESHOLD,
         "train_size":     len(TRAINING_DATA),
-    })
+    }
+    _MODEL_STATS_CACHE["data"] = result
+    _MODEL_STATS_CACHE["ts"]   = time.time()
+    return jsonify(result)
 
 
 @app.route("/api/classify", methods=["POST"])
