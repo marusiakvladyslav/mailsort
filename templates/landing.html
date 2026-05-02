@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="uk" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>MailSort — автоматична класифікація університетської пошти</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>
+(function(){
+  try {
+    var t = localStorage.getItem('mailsort-theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  } catch(e){}
+})();
+</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root,
+[data-theme="dark"]{
+  --bg:#0a0c0f;--bg2:#141619;--bg3:#1c1e23;
+  --border:#2a2d35;--border2:#363b45;
+  --text:#e6e9f0;--muted:#9aa0b4;--muted2:#636878;
+  --accent:#4e8de8;--accent2:#5b4fd4;
+  --green:#2ebd85;
+  --hero-grad:radial-gradient(ellipse at top, rgba(78,141,232,.18), transparent 55%),
+              radial-gradient(ellipse at bottom right, rgba(91,79,212,.15), transparent 60%);
+}
+[data-theme="light"]{
+  --bg:#f5f6f8;--bg2:#ffffff;--bg3:#eef0f3;
+  --border:#dde1e6;--border2:#c4cad3;
+  --text:#15181e;--muted:#5b6171;--muted2:#878d9a;
+  --accent:#3a74cc;--accent2:#5b4fd4;
+  --green:#22a578;
+  --hero-grad:radial-gradient(ellipse at top, rgba(78,141,232,.10), transparent 55%),
+              radial-gradient(ellipse at bottom right, rgba(91,79,212,.08), transparent 60%);
+}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Inter',system-ui,sans-serif;font-size:15px;line-height:1.6;
+  min-height:100vh;
+}
+a{color:var(--accent);text-decoration:none}
+
+/* ── Top nav ── */
+.nav{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 28px;background:rgba(10,12,15,.7);
+  backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+}
+[data-theme="light"] .nav{background:rgba(255,255,255,.7)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px}
+.brand-logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#3a74cc,#5b4fd4);display:flex;align-items:center;justify-content:center}
+.brand-logo svg{width:17px;height:17px;stroke:#fff;fill:none;stroke-width:2}
+.nav-actions{display:flex;align-items:center;gap:10px}
+.theme-btn{background:var(--bg3);border:1px solid var(--border);color:var(--muted);
+  width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .15s}
+.theme-btn:hover{color:var(--text);border-color:var(--border2)}
+.theme-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2}
+[data-theme="dark"] .icon-sun{display:block}
+[data-theme="dark"] .icon-moon{display:none}
+[data-theme="light"] .icon-sun{display:none}
+[data-theme="light"] .icon-moon{display:block}
+
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 18px;border-radius:8px;font-size:13px;font-weight:500;
+  cursor:pointer;border:none;transition:all .15s;
+  text-decoration:none !important;font-family:inherit
+}
+.btn-primary{background:linear-gradient(135deg,#3a74cc,#5b4fd4);color:#fff}
+.btn-primary:hover{opacity:.92;transform:translateY(-1px);box-shadow:0 6px 20px rgba(78,141,232,.3)}
+.btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--bg3)}
+
+/* ── Hero ── */
+.hero{
+  position:relative;padding:80px 28px 60px;
+  background:var(--hero-grad);
+  text-align:center;overflow:hidden;
+}
+.hero-content{max-width:820px;margin:0 auto;position:relative;z-index:2}
+.hero-badge{
+  display:inline-block;padding:5px 14px;border-radius:99px;
+  background:rgba(78,141,232,.12);border:1px solid rgba(78,141,232,.25);
+  color:var(--accent);font-size:12px;font-weight:500;margin-bottom:20px;
+  letter-spacing:.3px;
+}
+.hero h1{
+  font-size:clamp(32px, 5.5vw, 54px);font-weight:700;
+  letter-spacing:-1.5px;line-height:1.08;margin-bottom:18px;
+  background:linear-gradient(135deg,var(--text) 30%,var(--accent));
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+}
+.hero p{font-size:clamp(15px, 2vw, 18px);color:var(--muted);max-width:600px;margin:0 auto 32px;line-height:1.6}
+.hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.hero-actions .btn{padding:13px 26px;font-size:14px}
+.hero-stats{display:flex;justify-content:center;gap:40px;margin-top:50px;flex-wrap:wrap}
+.hs-item{text-align:center}
+.hs-num{font-size:28px;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace}
+.hs-lbl{font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+
+/* ── Sections ── */
+.section{padding:70px 28px;max-width:1140px;margin:0 auto}
+.sec-head{text-align:center;margin-bottom:44px}
+.sec-tag{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);font-weight:600;margin-bottom:10px}
+.sec-title{font-size:clamp(24px, 3.5vw, 34px);font-weight:600;letter-spacing:-.7px;margin-bottom:8px}
+.sec-sub{color:var(--muted);font-size:15px;max-width:600px;margin:0 auto}
+
+/* Features grid */
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media (max-width:840px){.features{grid-template-columns:1fr}}
+.feature{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:14px;padding:26px 22px;
+  transition:transform .2s,border-color .2s;
+}
+.feature:hover{transform:translateY(-3px);border-color:var(--border2)}
+.feature-icon{
+  width:42px;height:42px;border-radius:10px;
+  background:rgba(78,141,232,.1);border:1px solid rgba(78,141,232,.2);
+  display:flex;align-items:center;justify-content:center;color:var(--accent);
+  margin-bottom:16px;
+}
+.feature-icon svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2}
+.feature h3{font-size:16px;font-weight:600;margin-bottom:8px}
+.feature p{color:var(--muted);font-size:13.5px;line-height:1.65}
+
+/* Stack section */
+.stack{
+  background:var(--bg2);border:1px solid var(--border);border-radius:14px;
+  padding:34px;display:grid;grid-template-columns:1fr 1.2fr;gap:36px;align-items:center;
+}
+@media (max-width:780px){.stack{grid-template-columns:1fr;padding:24px}}
+.stack-text h3{font-size:22px;margin-bottom:12px;letter-spacing:-.4px}
+.stack-text p{color:var(--muted);font-size:14px;margin-bottom:14px;line-height:1.7}
+.stack-list{display:flex;flex-wrap:wrap;gap:8px}
+.stack-tag{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:6px 12px;border-radius:6px;
+  background:var(--bg3);border:1px solid var(--border);
+  font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--text);
+}
+.stack-tag::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.stack-visual{
+  background:var(--bg3);border:1px solid var(--border);border-radius:10px;
+  padding:18px;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);
+  line-height:1.8;
+}
+.stack-visual .kw{color:#c792ea}
+.stack-visual .str{color:#a3d977}
+.stack-visual .cm{color:var(--muted2)}
+.stack-visual .fn{color:#82aaff}
+
+/* Process */
+.process{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media (max-width:880px){.process{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:480px){.process{grid-template-columns:1fr}}
+.proc{
+  background:var(--bg2);border:1px solid var(--border);
+  border-radius:12px;padding:20px;text-align:left;position:relative;
+}
+.proc-num{
+  position:absolute;top:14px;right:16px;
+  font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;
+  color:var(--bg3);
+}
+.proc h4{font-size:14px;margin-bottom:6px;font-weight:600}
+.proc p{color:var(--muted);font-size:12.5px;line-height:1.6}
+
+/* CTA */
+.cta{
+  text-align:center;padding:60px 28px 80px;
+  background:radial-gradient(ellipse at center, rgba(78,141,232,.10), transparent 70%);
+}
+.cta h2{font-size:clamp(24px, 3.5vw, 32px);margin-bottom:12px;letter-spacing:-.5px}
+.cta p{color:var(--muted);margin-bottom:24px;font-size:15px}
+
+/* Footer */
+.footer{
+  border-top:1px solid var(--border);
+  padding:30px 28px;text-align:center;color:var(--muted2);font-size:12px;line-height:1.8;
+  font-family:'JetBrains Mono',monospace;
+}
+.footer strong{color:var(--muted)}
+.footer a{color:var(--muted)}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="brand">
+    <div class="brand-logo">
+      <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 7 10-7"/></svg>
+    </div>
+    MailSort
+  </div>
+  <div class="nav-actions">
+    <button class="theme-btn" id="themeBtn" aria-label="Тема">
+      <svg class="icon-sun" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <a href="/login" class="btn btn-primary">Увійти</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">Курсова робота · ЧНУ ім. Юрія Федьковича · 2026</div>
+    <h1>Автоматична класифікація університетської пошти</h1>
+    <p>MailSort використовує машинне навчання для розподілу електронних листів за категоріями: новини, навчальний процес, Moodle, адміністрація і події. Спам відфільтровується автоматично.</p>
+    <div class="hero-actions">
+      <a href="/login" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Увійти через Google
+      </a>
+      <a href="#features" class="btn btn-ghost">Дізнатись більше</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hs-item"><div class="hs-num">5</div><div class="hs-lbl">Категорій</div></div>
+      <div class="hs-item"><div class="hs-num">TF-IDF</div><div class="hs-lbl">+ SVM</div></div>
+      <div class="hs-item"><div class="hs-num">IMAP</div><div class="hs-lbl">Gmail / ЧНУ</div></div>
+      <div class="hs-item"><div class="hs-num">100%</div><div class="hs-lbl">Open Source</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="sec-head">
+    <div class="sec-tag">Можливості</div>
+    <div class="sec-title">Усе для роботи з університетською поштою</div>
+    <div class="sec-sub">Прості інструменти та продуманий інтерфейс — без зайвих опцій і складних налаштувань.</div>
+  </div>
+
+  <div class="features">
+    <div class="feature">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <h3>ML-класифікація</h3>
+      <p>TF-IDF + SVM з підтримкою морфології української мови через char n-gram. Ви коригуєте — модель навчається.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="9" y1="12" x2="15" y2="12"/></svg>
+      </div>
+      <h3>Розумний спам-фільтр</h3>
+      <p>Двохрівнева перевірка: за відправником і вмістом листа. Можна блокувати домени і вручну редагувати правила.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+      </div>
+      <h3>Авто-синхронізація IMAP</h3>
+      <p>Налаштовуваний інтервал перевірки нової пошти. Парсинг тіл листів, тем і вкладень .docx з тексту.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
+      <h3>Аналітика і статистика</h3>
+      <p>Розподіл листів по категоріях, графіки активності, моніторинг якості ML-моделі в реальному часі.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+      </div>
+      <h3>Новини ЧНУ</h3>
+      <p>Бічна панель показує останні новини з офіційного сайту університету. Парсинг HTML без зовнішніх API.</p>
+    </div>
+    <div class="feature">
+      <div class="feature-icon">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h3>Безпечна авторизація</h3>
+      <p>Вхід через Google OAuth 2.0. Пароль Gmail зберігається лише як App Password — безпечно і відкликається будь-коли.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="stack">
+    <div class="stack-text">
+      <div class="sec-tag">Технологічний стек</div>
+      <h3>Сучасні інструменти Python</h3>
+      <p>Бекенд побудований на Flask, машинне навчання — scikit-learn з Pipeline і FeatureUnion. База даних — SQLite, фронтенд — чистий HTML/CSS/JS без важких фреймворків.</p>
+      <div class="stack-list">
+        <span class="stack-tag">Python 3.11</span>
+        <span class="stack-tag">Flask</span>
+        <span class="stack-tag">scikit-learn</span>
+        <span class="stack-tag">SQLite</span>
+        <span class="stack-tag">Gunicorn</span>
+        <span class="stack-tag">OAuth 2.0</span>
+        <span class="stack-tag">IMAP</span>
+        <span class="stack-tag">BeautifulSoup</span>
+      </div>
+    </div>
+    <div class="stack-visual">
+      <span class="cm"># MailSort: pipeline класифікатора</span><br>
+      <span class="kw">from</span> sklearn.pipeline <span class="kw">import</span> Pipeline<br>
+      <span class="kw">from</span> sklearn.svm <span class="kw">import</span> LinearSVC<br><br>
+      pipe = <span class="fn">Pipeline</span>([<br>
+      &nbsp;&nbsp;(<span class="str">'tfidf'</span>, <span class="fn">TfidfVectorizer</span>(<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;ngram_range=(<span class="str">1</span>,<span class="str">2</span>),<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;analyzer=<span class="str">'char_wb'</span>,<br>
+      &nbsp;&nbsp;)),<br>
+      &nbsp;&nbsp;(<span class="str">'clf'</span>, <span class="fn">LinearSVC</span>())<br>
+      ])<br>
+      pipe.<span class="fn">fit</span>(X_train, y_train)
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="sec-head">
+    <div class="sec-tag">Як це працює</div>
+    <div class="sec-title">Чотири кроки до автоматизованої пошти</div>
+  </div>
+  <div class="process">
+    <div class="proc">
+      <div class="proc-num">01</div>
+      <h4>Авторизація</h4>
+      <p>Увійдіть через Google OAuth — без створення нового пароля.</p>
+    </div>
+    <div class="proc">
+      <div class="proc-num">02</div>
+      <h4>Підключення IMAP</h4>
+      <p>Введіть App Password Gmail у налаштуваннях для зчитування пошти.</p>
+    </div>
+    <div class="proc">
+      <div class="proc-num">03</div>
+      <h4>Синхронізація</h4>
+      <p>Система отримає листи через IMAP і застосує ML-класифікацію.</p>
+    </div>
+    <div class="proc">
+      <div class="proc-num">04</div>
+      <h4>Робота з листами</h4>
+      <p>Переглядайте, переміщуйте і коригуйте — модель навчатиметься на ваших правках.</p>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <h2>Готові спробувати?</h2>
+  <p>Безкоштовно, без реклами, безпечно через Google.</p>
+  <a href="/login" class="btn btn-primary">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    Розпочати роботу
+  </a>
+</section>
+
+<footer class="footer">
+  ЧНУ ім. Юрія Федьковича · Курсова робота · 2026<br>
+  <strong>Автор: Марусяк В.В.</strong> · Кафедра математичного моделювання
+</footer>
+
+<script>
+document.getElementById('themeBtn').addEventListener('click', function(){
+  var cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  var next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('mailsort-theme', next); } catch(e){}
+});
+</script>
+</body>
+</html>

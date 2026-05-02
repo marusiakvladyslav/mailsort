@@ -30,7 +30,7 @@
 
 {% block content %}
 <div class="page-title">Налаштування</div>
-<div class="page-sub">IMAP-з'єднання, поріг класифікації, облікові дані</div>
+<div class="page-sub">IMAP-з'єднання, поріг класифікації</div>
 
 <form method="POST">
 <div class="settings-grid">
@@ -74,24 +74,12 @@
   </div>
 
   <div>
-    <div class="settings-card" style="margin-bottom:20px">
+    <div class="settings-card">
       <div class="settings-card-title">Класифікатор</div>
       <div class="field">
         <label>Поріг впевненості</label>
         <input type="text" name="threshold" value="{{ settings.threshold }}" placeholder="0.30">
         <div class="hint">0.00–1.00 · Нижче порогу → «Невизначено». Рекомендовано: 0.25–0.40</div>
-      </div>
-    </div>
-    <div class="settings-card">
-      <div class="settings-card-title">Автентифікація</div>
-      <div class="field">
-        <label>Логін адміністратора</label>
-        <input type="text" name="auth_user" value="{{ settings.auth_user }}">
-      </div>
-      <div class="field">
-        <label>Новий пароль</label>
-        <input type="password" name="auth_pass" placeholder="Залиште порожнім щоб не змінювати">
-        <div class="hint">Поточний пароль не відображається з міркувань безпеки</div>
       </div>
     </div>
   </div>

@@ -220,7 +220,40 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.secret_key = SECRET_KEY
 app.config["SESSION_PERMANENT"] = False
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 60 * 60 * 24 * 7   # 7 днів кешу для статики
 app.jinja_env.filters["render_body"] = _render_body
+
+
+# ── gzip-стиснення відповідей ─────────────────────────────────────
+import gzip
+from io import BytesIO
+
+@app.after_request
+def _gzip_response(response):
+    """Стискає HTML/CSS/JS/JSON якщо клієнт підтримує gzip."""
+    accept = request.headers.get("Accept-Encoding", "")
+    if "gzip" not in accept.lower():
+        return response
+    if response.status_code < 200 or response.status_code >= 300:
+        return response
+    if "Content-Encoding" in response.headers:
+        return response
+    ct = response.content_type or ""
+    if not any(t in ct for t in ("text/", "application/json", "application/javascript")):
+        return response
+    if response.direct_passthrough:
+        return response
+    body = response.get_data()
+    if len(body) < 500:
+        return response
+    buf = BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=6) as gz:
+        gz.write(body)
+    response.set_data(buf.getvalue())
+    response.headers["Content-Encoding"] = "gzip"
+    response.headers["Content-Length"]   = str(len(response.get_data()))
+    response.headers["Vary"] = "Accept-Encoding"
+    return response
 
 
 # ── Auth decorator ───────────────────────────────────────────────
@@ -258,29 +291,25 @@ _CATEGORY_BG = {
     "Невизначено":           "bg_category.jpg",
 }
 
+_SIDEBAR_CACHE = {"data": None, "ts": 0}
+_SIDEBAR_TTL = 5  # секунд (компроміс: швидкість vs свіжість лічильників)
+
 def _sidebar_ctx():
-    """Контекст для сайдбару (категорії + лічильники)."""
+    """Контекст для сайдбару (категорії + лічильники). Кешується на 15 сек."""
+    import time
+    now = time.time()
+    cached = _SIDEBAR_CACHE.get("data")
+    if cached and (now - _SIDEBAR_CACHE["ts"]) < _SIDEBAR_TTL:
+        # Тільки фон оновлюємо (залежить від path)
+        ctx = dict(cached)
+        ctx["bg_image"] = _resolve_bg(request.path)
+        return ctx
+
     stats  = get_stats()
     by_cat = stats["by_category"]
     all_cats = get_all_categories()
-    # Вибираємо фон: спочатку точний збіг, потім prefix, потім категорія
-    path = request.path
-    bg = _BG_MAP.get(path)
-    if not bg:
-        for prefix, img in _BG_MAP.items():
-            if len(prefix) > 1 and path.startswith(prefix):
-                bg = img
-                break
-    if not bg:
-        # Для /category/<name> — унікальний фон категорії
-        if path.startswith("/category/"):
-            cat_name = path[len("/category/"):]
-            from urllib.parse import unquote
-            cat_name = unquote(cat_name)
-            bg = _CATEGORY_BG.get(cat_name, "bg_category.jpg")
-        else:
-            bg = "bg_category.jpg"
-    return {
+    bg = _resolve_bg(request.path)
+    data = {
         "categories":     all_cats,
         "category_names": [c["name"] for c in all_cats],
         "unread":         {i["category"]: i["unread"] for i in by_cat},
@@ -288,11 +317,39 @@ def _sidebar_ctx():
         "starred_count":  get_starred_count(),
         "bg_image":       bg,
     }
+    _SIDEBAR_CACHE["data"] = data
+    _SIDEBAR_CACHE["ts"]   = now
+    return data
+
+
+def _resolve_bg(path):
+    """Підбирає фоновий малюнок під поточний шлях."""
+    bg = _BG_MAP.get(path)
+    if not bg:
+        for prefix, img in _BG_MAP.items():
+            if len(prefix) > 1 and path.startswith(prefix):
+                bg = img
+                break
+    if not bg:
+        if path.startswith("/category/"):
+            cat_name = path[len("/category/"):]
+            from urllib.parse import unquote
+            cat_name = unquote(cat_name)
+            bg = _CATEGORY_BG.get(cat_name, "bg_category.jpg")
+        else:
+            bg = "bg_category.jpg"
+    return bg
+
+
+def _invalidate_sidebar_cache():
+    """Викликати після операцій що змінюють лічильники."""
+    _SIDEBAR_CACHE["ts"] = 0
 
 
 @app.before_request
 def ensure_db():
-    init_db()
+    """init_db викликано один раз на старті (нижче), тут нічого не робимо."""
+    pass
 
 
 # ── Auth ─────────────────────────────────────────────────────────
@@ -374,6 +431,19 @@ def logout():
 
 # ── Main pages ───────────────────────────────────────────────────
 @app.route("/")
+def root():
+    if not session.get("logged_in"):
+        return redirect(url_for("landing"))
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/about")
+def landing():
+    """Публічна лендінг-сторінка."""
+    return render_template("landing.html")
+
+
+@app.route("/dashboard")
 @login_required
 def index():
     stats = get_stats()
@@ -564,7 +634,7 @@ def export_excel():
 @login_required
 def settings():
     keys = ["imap_host", "imap_port", "email_user", "imap_pass",
-            "fetch_limit", "threshold", "sync_interval", "auth_user", "auth_pass"]
+            "fetch_limit", "threshold", "sync_interval"]
 
     if request.method == "POST":
         for k in keys:
