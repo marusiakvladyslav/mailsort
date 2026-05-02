@@ -4,8 +4,8 @@
 {% block extra_head %}
 <style>
   .email-card {
-    background: rgba(20,22,25,.78);
-    border: 1px solid rgba(255,255,255,.08);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: var(--r);
     overflow: hidden;
     margin-bottom: 20px;
@@ -13,7 +13,7 @@
   }
   .email-header {
     padding: 20px 24px;
-    border-bottom: 1px solid rgba(255,255,255,.06);
+    border-bottom: 1px solid var(--border);
     background: rgba(255,255,255,.02);
   }
   .email-title { font-size: 18px; font-weight: 600; margin-bottom: 12px; line-height: 1.4; }
@@ -39,8 +39,8 @@
   .email-body br + br { display: block; margin-top: 6px; content: ""; }
 
   .classify-block {
-    background: rgba(20,22,25,.78);
-    border: 1px solid rgba(255,255,255,.08);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: var(--r);
     padding: 20px 24px;
     backdrop-filter: blur(8px);
@@ -63,7 +63,7 @@
   .reclassify-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .reclassify-form select {
     background: rgba(28,30,35,.9);
-    border: 1px solid rgba(255,255,255,.1);
+    border: 1px solid var(--border2);
     border-radius: var(--rs);
     color: var(--text);
     padding: 7px 10px;
@@ -161,7 +161,7 @@
   </div>
 
   <!-- Спам-дії -->
-  <div style="border-top:1px solid rgba(255,255,255,.06);padding-top:16px">
+  <div style="border-top:1px solid var(--border);padding-top:16px">
 
     {% if email.category == 'Спам / Реклама' %}
     <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">Розблокувати відправника</div>

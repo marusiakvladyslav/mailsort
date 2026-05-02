@@ -4,8 +4,8 @@
 {% block extra_head %}
 <style>
 .help-section {
-  background: rgba(20,22,25,.80);
-  border: 1px solid rgba(255,255,255,.08);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: var(--r);
   padding: 24px 28px;
   margin-bottom: 20px;
@@ -30,7 +30,7 @@
 .help-section strong { color: var(--text); }
 .help-section code {
   font-family: var(--mono); font-size: 12px;
-  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+  background: var(--border); border: 1px solid var(--border);
   border-radius: 4px; padding: 2px 7px; color: #a5d8ff;
 }
 .help-section a { color: var(--accent); text-decoration: none; }
@@ -55,7 +55,7 @@
 @media (max-width: 700px) { .steps-grid { grid-template-columns: 1fr; } }
 
 .step-card {
-  background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06);
+  background: rgba(255,255,255,.03); border: 1px solid var(--border);
   border-radius: var(--rs); padding: 14px 16px;
 }
 .step-card-title {

@@ -5,7 +5,7 @@
 <style>
 .cat-mgmt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 .mgmt-card {
-  background: rgba(20,22,25,.78); border: 1px solid rgba(255,255,255,.08);
+  background: var(--card-bg); border: 1px solid var(--border);
   border-radius: var(--r); padding: 22px 24px; backdrop-filter: blur(8px);
 }
 .card-title {
@@ -15,7 +15,7 @@
 .add-form { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .add-input {
   flex: 1; min-width: 140px; background: rgba(28,30,35,.9);
-  border: 1px solid rgba(255,255,255,.1); border-radius: var(--rs);
+  border: 1px solid var(--border2); border-radius: var(--rs);
   color: var(--text); padding: 8px 12px; font-size: 13px; font-family: var(--font);
   outline: none; transition: border-color .15s;
 }
@@ -25,10 +25,10 @@
 .cat-item {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 14px; background: rgba(255,255,255,.03);
-  border-radius: var(--rs); border: 1px solid rgba(255,255,255,.06);
+  border-radius: var(--rs); border: 1px solid var(--border);
   transition: border-color .15s;
 }
-.cat-item:hover { border-color: rgba(255,255,255,.1); }
+.cat-item:hover { border-color: var(--border2); }
 .cat-icon-nm { display: flex; align-items: center; gap: 10px; }
 .cat-item-icon { font-size: 18px; }
 .cat-item-name { font-size: 13px; font-weight: 500; }
@@ -112,7 +112,7 @@
     </div>
 
     {% if custom_cats %}
-    <div style="margin-top:14px;font-size:11px;color:var(--muted);border-top:1px solid rgba(255,255,255,.06);padding-top:12px">
+    <div style="margin-top:14px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);padding-top:12px">
       При видаленні категорії всі листи переходять у «Невизначено»
     </div>
     {% endif %}

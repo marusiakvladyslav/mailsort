@@ -5,8 +5,8 @@
 <style>
   .email-list { display: flex; flex-direction: column; gap: 6px; }
   .email-item {
-    background: rgba(20,22,25,.75);
-    border: 1px solid rgba(255,255,255,.07);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: var(--r);
     padding: 13px 18px;
     display: grid;
@@ -35,7 +35,7 @@
   .conf-bar {
     display: inline-block;
     width: 40px; height: 3px;
-    background: rgba(255,255,255,.08);
+    background: var(--border);
     border-radius: 2px;
     overflow: hidden;
     vertical-align: middle;
@@ -43,7 +43,7 @@
   .conf-fill { height: 100%; background: var(--green); border-radius: 2px; }
   .empty {
     text-align: center; padding: 60px; color: var(--muted);
-    background: rgba(20,22,25,.6); border: 1px dashed rgba(255,255,255,.08);
+    background: var(--card-bg); border: 1px dashed var(--border);
     border-radius: var(--r); backdrop-filter: blur(4px);
   }
   .star-inline { background:none;border:none;cursor:pointer;

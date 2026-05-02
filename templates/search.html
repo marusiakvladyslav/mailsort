@@ -5,14 +5,14 @@
 <style>
 .search-bar { display: flex; gap: 10px; margin-bottom: 24px; align-items: center; }
 .search-input {
-  flex: 1; background: rgba(20,22,25,.8); border: 1px solid rgba(255,255,255,.1);
+  flex: 1; background: var(--card-bg); border: 1px solid var(--border2);
   border-radius: var(--r); color: var(--text);
   padding: 9px 14px; font-size: 14px; font-family: var(--font);
   outline: none; transition: border-color .15s; backdrop-filter: blur(4px);
 }
 .search-input:focus { border-color: var(--accent); }
 .search-select {
-  background: rgba(20,22,25,.8); border: 1px solid rgba(255,255,255,.1);
+  background: var(--card-bg); border: 1px solid var(--border2);
   border-radius: var(--r); color: var(--text);
   padding: 9px 10px; font-size: 13px; font-family: var(--font);
   outline: none; min-width: 180px; backdrop-filter: blur(4px);
@@ -21,7 +21,7 @@
 .result-count strong { color: var(--accent); font-family: var(--mono); }
 .email-list { display: flex; flex-direction: column; gap: 6px; }
 .email-item {
-  background: rgba(20,22,25,.75); border: 1px solid rgba(255,255,255,.07);
+  background: var(--card-bg); border: 1px solid var(--border);
   border-radius: var(--r); padding: 14px 18px;
   display: grid; grid-template-columns: 1fr auto;
   gap: 8px; text-decoration: none; color: var(--text);
@@ -35,7 +35,7 @@
 mark { background: rgba(78,141,232,.3); color: var(--text); border-radius: 2px; padding: 0 2px; }
 .empty {
   text-align: center; padding: 60px; color: var(--muted);
-  background: rgba(20,22,25,.6); border: 1px dashed rgba(255,255,255,.08);
+  background: var(--card-bg); border: 1px dashed var(--border);
   border-radius: var(--r); backdrop-filter: blur(4px);
 }
 </style>

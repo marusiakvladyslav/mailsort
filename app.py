@@ -824,49 +824,49 @@ def api_stats():
     return jsonify(get_stats())
 
 
-_MODEL_STATS_CACHE = {"data": None, "ts": 0}
+_MODEL_STATS_CACHE = {"data": None, "ts": 0, "computing": False}
 
-@app.route("/api/model-stats")
-@login_required
-def api_model_stats():
+
+def _compute_model_stats():
+    """Обчислення статистики моделей. Спрощена версія для швидкості."""
     import time
-    now = time.time()
-    if _MODEL_STATS_CACHE["data"] and (now - _MODEL_STATS_CACHE["ts"]) < 300:
-        return jsonify(_MODEL_STATS_CACHE["data"])
-
     from classifier import TRAINING_DATA, MODELS, CONFIDENCE_THRESHOLD
     from preprocessor import preprocess
-    from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
-    from sklearn.metrics import confusion_matrix, classification_report
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import confusion_matrix, classification_report, f1_score
 
     texts  = [preprocess(t, "") for t, _ in TRAINING_DATA]
     labels = [cat for _, cat in TRAINING_DATA]
     cats   = sorted(set(labels))
 
-    cv_results = {}
-    for name, builder in MODELS.items():
-        scores = cross_val_score(
-            builder(), texts, labels,
-            cv=StratifiedKFold(n_splits=5, shuffle=True, random_state=42),
-            scoring="f1_weighted",
-        )
-        cv_results[name] = {
-            "mean":   round(float(scores.mean()), 4),
-            "std":    round(float(scores.std()),  4),
-            "scores": [round(float(s), 4) for s in scores],
-        }
-
-    best_name = max(cv_results, key=lambda k: cv_results[k]["mean"])
+    # Один train/test split, всі моделі тренуються на ньому (швидко)
     X_tr, X_te, y_tr, y_te = train_test_split(
-        texts, labels, test_size=0.2, random_state=42, stratify=labels
+        texts, labels, test_size=0.25, random_state=42, stratify=labels
     )
-    pipe = MODELS[best_name]()
-    pipe.fit(X_tr, y_tr)
-    y_pred  = pipe.predict(X_te)
-    cm      = confusion_matrix(y_te, y_pred, labels=cats).tolist()
-    report  = classification_report(y_te, y_pred, output_dict=True)
 
-    result = {
+    cv_results = {}
+    best_name, best_score = None, -1
+    best_pipe = None
+    for name, builder in MODELS.items():
+        pipe = builder()
+        pipe.fit(X_tr, y_tr)
+        y_pred = pipe.predict(X_te)
+        score  = f1_score(y_te, y_pred, average="weighted", zero_division=0)
+        cv_results[name] = {
+            "mean":   round(float(score), 4),
+            "std":    0.0,
+            "scores": [round(float(score), 4)],
+        }
+        if score > best_score:
+            best_score = score
+            best_name  = name
+            best_pipe  = pipe
+
+    y_pred = best_pipe.predict(X_te)
+    cm     = confusion_matrix(y_te, y_pred, labels=cats).tolist()
+    report = classification_report(y_te, y_pred, output_dict=True, zero_division=0)
+
+    return {
         "cv_results":       cv_results,
         "best_model":       best_name,
         "categories":       cats,
@@ -878,9 +878,45 @@ def api_model_stats():
         "threshold":      CONFIDENCE_THRESHOLD,
         "train_size":     len(TRAINING_DATA),
     }
-    _MODEL_STATS_CACHE["data"] = result
-    _MODEL_STATS_CACHE["ts"]   = time.time()
-    return jsonify(result)
+
+
+def _precompute_model_stats_async():
+    """Запускається у фоні при старті — щоб перший запит /api/model-stats був миттєвим."""
+    import threading, time
+    def worker():
+        try:
+            _MODEL_STATS_CACHE["computing"] = True
+            data = _compute_model_stats()
+            _MODEL_STATS_CACHE["data"] = data
+            _MODEL_STATS_CACHE["ts"]   = time.time()
+        except Exception as e:
+            print(f"[model-stats precompute] {e}")
+        finally:
+            _MODEL_STATS_CACHE["computing"] = False
+    threading.Thread(target=worker, daemon=True).start()
+
+
+@app.route("/api/model-stats")
+@login_required
+def api_model_stats():
+    import time
+    now = time.time()
+    cache_ttl = 600  # 10 хв
+    if _MODEL_STATS_CACHE["data"] and (now - _MODEL_STATS_CACHE["ts"]) < cache_ttl:
+        return jsonify(_MODEL_STATS_CACHE["data"])
+
+    # Якщо хтось вже обчислює — повертаємо статус
+    if _MODEL_STATS_CACHE["computing"]:
+        return jsonify({"computing": True}), 202
+
+    # Обчислюємо синхронно (єдиний раз, далі — кеш)
+    try:
+        result = _compute_model_stats()
+        _MODEL_STATS_CACHE["data"] = result
+        _MODEL_STATS_CACHE["ts"]   = time.time()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/classify", methods=["POST"])
@@ -1422,6 +1458,12 @@ from database import get_setting as _gs
 _interval = int(_gs('sync_interval', '300'))
 if _interval > 0:
     start_auto_sync(_interval)
+
+# Прогріваємо ML-stats у фоні щоб /stats відкривався миттєво
+try:
+    _precompute_model_stats_async()
+except Exception as _e:
+    print(f"[startup] precompute skipped: {_e}")
 
 if __name__ == "__main__":
     print()

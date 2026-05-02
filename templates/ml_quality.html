@@ -4,11 +4,11 @@
 {% block extra_head %}
 <style>
 .mq-wrap{display:grid;gap:20px;max-width:1200px}
-.mq-card{background:rgba(20,22,25,.78);border:1px solid rgba(255,255,255,.08);border-radius:var(--r);padding:22px 26px;backdrop-filter:blur(8px)}
+.mq-card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--r);padding:22px 26px;backdrop-filter:blur(8px)}
 .mq-title{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:8px}
 .mq-title svg{color:var(--accent)}
 .mq-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-.mq-metric{background:rgba(15,18,22,.6);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:14px 16px;text-align:center}
+.mq-metric{background:rgba(15,18,22,.6);border:1px solid var(--border);border-radius:10px;padding:14px 16px;text-align:center}
 .mq-metric .v{font-size:28px;font-weight:600;font-family:var(--mono);color:var(--accent);line-height:1}
 .mq-metric .v.ok{color:var(--green)}
 .mq-metric .v.warn{color:#e6a13a}
@@ -19,7 +19,7 @@
 .mq-retrain{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .mq-retrain-info{flex:1;min-width:220px}
 .mq-retrain-badge{display:inline-block;background:rgba(78,141,232,.15);border:1px solid rgba(78,141,232,.3);color:var(--accent);font-size:12px;padding:3px 9px;border-radius:12px;margin-left:6px;font-family:var(--mono)}
-.mq-retrain-badge.zero{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.1);color:var(--muted)}
+.mq-retrain-badge.zero{background:var(--border);border-color:var(--border2);color:var(--muted)}
 .btn-retrain{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;font-family:inherit}
 .btn-retrain:hover{background:var(--accent-h)}
 .btn-retrain:disabled{opacity:.55;cursor:not-allowed}
@@ -29,7 +29,7 @@
 
 /* Per-class table */
 .mq-pc{width:100%;border-collapse:collapse;font-size:13px}
-.mq-pc th,.mq-pc td{padding:8px 10px;text-align:center;border-bottom:1px solid rgba(255,255,255,.06)}
+.mq-pc th,.mq-pc td{padding:8px 10px;text-align:center;border-bottom:1px solid var(--border)}
 .mq-pc th{color:var(--muted);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.5px;text-align:left}
 .mq-pc th:not(:first-child){text-align:center}
 .mq-pc td:first-child{text-align:left;font-weight:500}
@@ -39,7 +39,7 @@
 /* Confusion matrix */
 .mq-cm-wrap{overflow-x:auto;margin-top:6px}
 .mq-cm{border-collapse:collapse;font-size:12px;font-family:var(--mono)}
-.mq-cm th,.mq-cm td{padding:6px 8px;text-align:center;border:1px solid rgba(255,255,255,.08)}
+.mq-cm th,.mq-cm td{padding:6px 8px;text-align:center;border:1px solid var(--border)}
 .mq-cm th{color:var(--muted);font-weight:500;writing-mode:horizontal-tb;font-size:10px}
 .mq-cm th.row-h{text-align:right;color:var(--muted);font-weight:500;font-size:11px;padding-right:10px;border:none}
 .mq-cm th.diag{color:var(--muted2);font-size:9px;font-style:italic}
@@ -48,7 +48,7 @@
 
 /* Mistakes */
 .mq-mist{list-style:none;padding:0;margin:0}
-.mq-mist li{background:rgba(15,18,22,.55);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:10px 13px;margin-bottom:8px;font-size:12px}
+.mq-mist li{background:rgba(15,18,22,.55);border:1px solid var(--border);border-radius:8px;padding:10px 13px;margin-bottom:8px;font-size:12px}
 .mq-mist .t{color:var(--text);margin-bottom:5px;line-height:1.5}
 .mq-mist .m{color:var(--muted);font-family:var(--mono);font-size:11px}
 .mq-mist .m .true{color:var(--green)}
@@ -57,7 +57,7 @@
 
 /* Versions table */
 .mq-vers{width:100%;border-collapse:collapse;font-size:12px;font-family:var(--mono)}
-.mq-vers th,.mq-vers td{padding:7px 10px;text-align:left;border-bottom:1px solid rgba(255,255,255,.06)}
+.mq-vers th,.mq-vers td{padding:7px 10px;text-align:left;border-bottom:1px solid var(--border)}
 .mq-vers th{color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.5px;font-family:inherit}
 .mq-vers .delta-plus{color:var(--green)}
 .mq-vers .delta-minus{color:var(--red)}

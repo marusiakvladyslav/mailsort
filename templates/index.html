@@ -5,8 +5,8 @@
 <style>
 .stats-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(190px,1fr)); gap:12px; margin-bottom:28px; }
 .stat-card {
-  background: rgba(20,22,25,.75);
-  border: 1px solid rgba(255,255,255,.07);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: var(--r);
   padding: 16px 20px;
   transition: all .15s;
@@ -19,8 +19,8 @@
 
 .cat-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; }
 .cat-card {
-  background: rgba(20,22,25,.75);
-  border: 1px solid rgba(255,255,255,.07);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: var(--r);
   padding: 14px 18px;
   display: flex; align-items: center; gap: 14px;
@@ -45,8 +45,8 @@
 .toolbar-btns  { display:flex; gap:8px; }
 .btn-del {
   font-size:11px; padding:5px 12px;
-  background: rgba(20,22,25,.7);
-  border: 1px solid rgba(255,255,255,.08);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: var(--rs); color:var(--muted);
   cursor:pointer; font-family:var(--font); transition:all .15s;
   backdrop-filter: blur(4px);
@@ -54,9 +54,9 @@
 .btn-del:hover { border-color:rgba(224,92,92,.4); color:var(--red); background:rgba(224,92,92,.08); }
 .empty-state {
   text-align:center; padding:60px 20px; color:var(--muted);
-  border: 1px dashed rgba(255,255,255,.1);
+  border: 1px dashed var(--border2);
   border-radius: var(--r);
-  background: rgba(20,22,25,.6);
+  background: var(--card-bg);
   backdrop-filter: blur(4px);
 }
 .empty-state h3 { font-size:16px; margin-bottom:8px; color:var(--text); }
