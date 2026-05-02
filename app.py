@@ -434,7 +434,7 @@ def logout():
 def root():
     if not session.get("logged_in"):
         return redirect(url_for("landing"))
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("index"))
 
 
 @app.route("/about")
