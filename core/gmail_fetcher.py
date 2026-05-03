@@ -14,7 +14,7 @@ import requests
 from database import (save_emails_bulk, get_setting, get_user_by_id,
                       update_user_tokens)
 from preprocessor import preprocess
-from spam_filter import detect_spam
+from spam_filter import check as detect_spam
 
 
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -188,10 +188,10 @@ def fetch_and_classify(user_id: int, limit: int = 50, progress_callback=None) ->
                     body = msg.get("snippet", "")
 
                 # Спам?
-                is_spam, _reason = detect_spam(sender, subject, body)
-                if is_spam:
-                    category   = "Спам / Реклама"
-                    confidence = 1.0
+                spam_result = detect_spam(sender, subject, body)
+                if spam_result:
+                    category   = spam_result[0]
+                    confidence = spam_result[1]
                     stats["spam_filtered"] += 1
                 else:
                     cat, conf = classify(subject, body)
