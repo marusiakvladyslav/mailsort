@@ -1,19 +1,16 @@
 """
 gmail_fetcher.py — отримання листів через Gmail API (OAuth).
-Замінює email_fetcher.py для multi-user системи.
+Оптимізована версія для безкоштовного хостингу.
 """
 import os
 import time
-import base64
-import re
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 
 import requests
 
 from database import (save_emails_bulk, get_setting, get_user_by_id,
-                      update_user_tokens)
-from preprocessor import preprocess
+                      update_user_tokens, get_user_uids)
 from spam_filter import check as detect_spam
 
 
@@ -22,16 +19,13 @@ GMAIL_API_BASE   = "https://gmail.googleapis.com/gmail/v1"
 
 
 def _refresh_access_token(user: dict) -> str | None:
-    """Оновлює access_token через refresh_token. Повертає новий token або None."""
     refresh = user.get("refresh_token")
     if not refresh:
         return None
-
     client_id     = os.environ.get("GOOGLE_CLIENT_ID", "")
     client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
     if not client_id or not client_secret:
         return None
-
     try:
         resp = requests.post(GOOGLE_TOKEN_URL, data={
             "client_id":     client_id,
@@ -52,7 +46,6 @@ def _refresh_access_token(user: dict) -> str | None:
 
 
 def _get_valid_token(user: dict) -> str | None:
-    """Повертає валідний access_token (оновлює якщо протермінований)."""
     expiry = user.get("token_expiry")
     if expiry:
         try:
@@ -61,50 +54,17 @@ def _get_valid_token(user: dict) -> str | None:
                 return user.get("access_token")
         except Exception:
             pass
-    # Інакше — оновлюємо
     return _refresh_access_token(user)
 
 
-def _api_get(token: str, path: str, params=None):
+def _api_get(session: requests.Session, token: str, path: str, params=None):
     headers = {"Authorization": f"Bearer {token}"}
     url = f"{GMAIL_API_BASE}{path}"
-    r = requests.get(url, headers=headers, params=params, timeout=30)
+    r = session.get(url, headers=headers, params=params, timeout=20)
     if r.status_code == 401:
         raise PermissionError("Token expired or invalid")
     r.raise_for_status()
     return r.json()
-
-
-def _decode_body(body_data: str) -> str:
-    if not body_data:
-        return ""
-    try:
-        return base64.urlsafe_b64decode(body_data + "===").decode("utf-8", errors="ignore")
-    except Exception:
-        return ""
-
-
-def _extract_text_from_payload(payload: dict) -> str:
-    """Рекурсивно витягує text/plain з payload Gmail API."""
-    if not payload:
-        return ""
-    mime = payload.get("mimeType", "")
-    body = payload.get("body", {})
-    parts = payload.get("parts", [])
-
-    if mime == "text/plain" and body.get("data"):
-        return _decode_body(body["data"])
-
-    if mime == "text/html" and body.get("data") and not parts:
-        html = _decode_body(body["data"])
-        text = re.sub(r"<[^>]+>", " ", html)
-        text = re.sub(r"\s+", " ", text)
-        return text.strip()
-
-    text = ""
-    for p in parts:
-        text += _extract_text_from_payload(p) + "\n"
-    return text.strip()
 
 
 def _get_header(headers: list, name: str) -> str:
@@ -115,15 +75,20 @@ def _get_header(headers: list, name: str) -> str:
     return ""
 
 
-def fetch_and_classify(user_id: int, limit: int = 50, progress_callback=None) -> dict:
+def fetch_and_classify(user_id: int, limit: int = 0, progress_callback=None) -> dict:
     """
-    Отримує листи з Gmail через API і класифікує їх.
-    user_id: ID користувача в локальній БД (звідти беремо OAuth токени).
-    Повертає словник зі статистикою.
+    Оптимізації:
+    - format=metadata замість full (без важкого тіла) - 5-10x швидше
+    - snippet (~200 символів) як body для класифікації
+    - HTTP-сесія з keep-alive
+    - Skip duplicates по UID
+    - Прогрес на кожен лист
+    - Збереження батчами по 10 - юзер бачить листи раніше
     """
     stats = {
         "total_on_server": 0,
         "fetched":         0,
+        "skipped":         0,
         "spam_filtered":   0,
         "errors":          0,
         "error_msg":       "",
@@ -141,97 +106,123 @@ def fetch_and_classify(user_id: int, limit: int = 50, progress_callback=None) ->
     user = get_user_by_id(user_id)
     if not user:
         stats["error_msg"] = "Користувач не знайдений."
+        _emit(phase="error", message=stats["error_msg"])
         return stats
 
     token = _get_valid_token(user)
     if not token:
         stats["error_msg"] = "Не вдалося отримати токен. Увійдіть знову через Google."
+        _emit(phase="error", message=stats["error_msg"])
         return stats
 
-    # Беремо ліміт з налаштувань або переданий
-    fetch_limit = limit if limit > 0 else int(get_setting("fetch_limit", "50"))
-    fetch_limit = max(1, min(fetch_limit, 500))  # обмежуємо для безкоштовного хостингу
+    fetch_limit = limit if limit > 0 else int(get_setting("fetch_limit", "25"))
+    fetch_limit = max(1, min(fetch_limit, 200))
+
+    session = requests.Session()
 
     try:
         _emit(phase="scanning", message="Запит списку листів…")
-        # Отримуємо список ID листів з INBOX
-        list_resp = _api_get(token, "/users/me/messages", params={
+        list_resp = _api_get(session, token, "/users/me/messages", params={
             "maxResults": fetch_limit,
             "labelIds":   "INBOX",
         })
         messages = list_resp.get("messages", [])
         stats["total_on_server"] = len(messages)
-        _emit(phase="scanning", message=f"Знайдено {len(messages)} листів, обробляю…")
 
-        # Імпортуємо класифікатор з lazy
+        existing_uids = get_user_uids(user_id)
+        new_messages = [m for m in messages
+                        if f"gmail_{m['id']}" not in existing_uids]
+        stats["skipped"] = len(messages) - len(new_messages)
+
+        if not new_messages:
+            _emit(phase="done",
+                  message=f"Все актуально (пропущено {stats['skipped']})")
+            return stats
+
+        _emit(phase="processing",
+              message=f"Нових: {len(new_messages)}, обробляю…",
+              total=len(new_messages), current=0)
+
+        # Прогріваємо класифікатор один раз
         from classifier import classify
 
         rows_to_save = []
-        for idx, m in enumerate(messages):
+        for idx, m in enumerate(new_messages):
             try:
-                msg = _api_get(token, f"/users/me/messages/{m['id']}", params={
-                    "format": "full",
-                })
+                msg = _api_get(session, token,
+                               f"/users/me/messages/{m['id']}",
+                               params={
+                                   "format": "metadata",
+                                   "metadataHeaders": ["Subject", "From", "Date"],
+                               })
                 payload = msg.get("payload", {})
                 headers = payload.get("headers", [])
 
                 subject = _get_header(headers, "Subject")
                 sender  = _get_header(headers, "From")
                 date_h  = _get_header(headers, "Date")
+
                 try:
                     date_iso = parsedate_to_datetime(date_h).isoformat() if date_h else ""
                 except Exception:
                     date_iso = ""
 
-                body = _extract_text_from_payload(payload)
-                if not body:
-                    body = msg.get("snippet", "")
+                body = msg.get("snippet", "")
 
-                # Спам?
                 spam_result = detect_spam(sender, subject, body)
                 if spam_result:
-                    category   = spam_result[0]
-                    confidence = spam_result[1]
+                    category, confidence = spam_result[0], spam_result[1]
                     stats["spam_filtered"] += 1
                 else:
                     cat, conf = classify(subject, body)
-                    category   = cat
-                    confidence = conf
+                    category, confidence = cat, conf
 
                 rows_to_save.append({
                     "uid":        f"gmail_{m['id']}",
                     "sender":     sender,
                     "subject":    subject,
-                    "body":       body[:50000],  # обмежуємо розмір
+                    "body":       body[:5000],
                     "date":       date_iso,
                     "category":   category,
                     "confidence": confidence,
                 })
                 stats["fetched"] += 1
 
-                if (idx + 1) % 10 == 0:
-                    _emit(phase="processing",
-                          message=f"Оброблено {idx+1}/{len(messages)}")
+                _emit(phase="processing",
+                      message=f"Оброблено {idx+1}/{len(new_messages)}",
+                      current=idx+1, total=len(new_messages),
+                      last_subject=subject[:80],
+                      last_category=category)
+
+                if len(rows_to_save) >= 10:
+                    save_emails_bulk(rows_to_save, user_id=user_id)
+                    rows_to_save = []
+
             except PermissionError:
                 token = _refresh_access_token(user)
                 if not token:
                     stats["error_msg"] = "Авторизація закінчилась."
                     break
-            except Exception as e:
+            except Exception:
                 stats["errors"] += 1
                 continue
 
         if rows_to_save:
-            _emit(phase="saving", message=f"Збереження {len(rows_to_save)} листів…")
             save_emails_bulk(rows_to_save, user_id=user_id)
 
-        _emit(phase="done", message="Готово")
+        _emit(phase="done",
+              message=f"Готово: +{stats['fetched']} нових")
 
     except PermissionError:
         stats["error_msg"] = "Сесія Google закінчилась — увійдіть знову."
+        _emit(phase="error", message=stats["error_msg"])
     except requests.HTTPError as e:
         stats["error_msg"] = f"Помилка Gmail API: {e}"
+        _emit(phase="error", message=stats["error_msg"])
     except Exception as e:
         stats["error_msg"] = f"Помилка: {e}"
+        _emit(phase="error", message=stats["error_msg"])
+    finally:
+        session.close()
 
     return stats

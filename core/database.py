@@ -67,7 +67,7 @@ def init_db() -> None:
                 value TEXT NOT NULL DEFAULT ''
             );
             INSERT OR IGNORE INTO settings (key, value) VALUES
-                ('fetch_limit', '50'),
+                ('fetch_limit', '25'),
                 ('threshold',   '0.30'),
                 ('sync_interval', '300');
 
@@ -159,6 +159,15 @@ def get_user_by_id(user_id: int):
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
         return dict(row) if row else None
+
+
+def get_user_uids(user_id: int) -> set:
+    """Повертає множину UID листів цього користувача (для пропуску дублікатів)."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT uid FROM emails WHERE user_id=?", (user_id,)
+        ).fetchall()
+    return {r["uid"] for r in rows if r["uid"]}
 
 
 def update_user_tokens(user_id: int, access_token: str, token_expiry: str) -> None:
