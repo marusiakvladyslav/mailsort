@@ -29,6 +29,12 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_AUTH_URL      = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL     = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL  = "https://www.googleapis.com/oauth2/v2/userinfo"
+GOOGLE_SCOPES        = " ".join([
+    "openid",
+    "email",
+    "profile",
+    "https://www.googleapis.com/auth/gmail.modify",
+])
 
 def _lazy_classify(subject, body, sender=""):
     from classifier import classify
@@ -93,9 +99,9 @@ def _progress_callback(payload: dict):
         _manual_sync_state.update(payload)
 
 
-def _run_manual_sync():
+def _run_manual_sync(user_id: int):
     try:
-        from email_fetcher import fetch_and_classify
+        from gmail_fetcher import fetch_and_classify
         with _manual_sync_lock:
             _manual_sync_state.update({
                 "phase": "connecting", "current": 0, "total": 0,
@@ -105,14 +111,14 @@ def _run_manual_sync():
                 "started_at":  time.time(),
                 "finished_at": None,
             })
-        s = fetch_and_classify(progress_callback=_progress_callback)
+        s = fetch_and_classify(user_id=user_id, progress_callback=_progress_callback)
         with _manual_sync_lock:
             if s.get("error_msg"):
                 _manual_sync_state["phase"]   = "error"
                 _manual_sync_state["message"] = s["error_msg"]
             else:
                 _manual_sync_state["phase"]   = "done"
-                _manual_sync_state["message"] = f"Готово: +{s.get('saved', 0)} нових"
+                _manual_sync_state["message"] = f"Готово: +{s.get('fetched', 0)} нових"
             _manual_sync_state["finished_at"] = time.time()
         _last_sync_result.update({
             "time":    time.strftime("%H:%M:%S"),
@@ -127,18 +133,25 @@ def _run_manual_sync():
 
 
 def _auto_sync_loop():
-    """Фоновий потік — перевіряє пошту кожні N секунд."""
+    """Фоновий потік — перевіряє пошту для всіх користувачів кожні N секунд."""
     while not _sync_stop.wait(_sync_interval):
         try:
-            from email_fetcher import fetch_and_classify
-            from database import get_setting
-            if get_setting("email_user", ""):
-                s = fetch_and_classify()
-                _last_sync_result.update({
-                    "time":    time.strftime("%H:%M:%S"),
-                    "fetched": s.get("fetched", 0),
-                    "status":  "error" if s.get("error_msg") else "ok",
-                })
+            from gmail_fetcher import fetch_and_classify
+            from database import get_connection
+            with get_connection() as conn:
+                users = conn.execute(
+                    "SELECT id FROM users WHERE refresh_token IS NOT NULL AND refresh_token != ''"
+                ).fetchall()
+            for u in users:
+                try:
+                    s = fetch_and_classify(user_id=u["id"], limit=20)
+                    _last_sync_result.update({
+                        "time":    time.strftime("%H:%M:%S"),
+                        "fetched": s.get("fetched", 0),
+                        "status":  "error" if s.get("error_msg") else "ok",
+                    })
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -266,6 +279,11 @@ def login_required(f):
     return decorated
 
 
+def current_user_id():
+    """Повертає user_id поточного користувача або None."""
+    return session.get("user_id")
+
+
 # Мапи фонових зображень для кожної вкладки
 _BG_MAP = {
     "/":            "bg_main.jpg",
@@ -305,7 +323,8 @@ def _sidebar_ctx():
         ctx["bg_image"] = _resolve_bg(request.path)
         return ctx
 
-    stats  = get_stats()
+    uid_=current_user_id()
+    stats  = get_stats(user_id=uid_)
     by_cat = stats["by_category"]
     all_cats = get_all_categories()
     bg = _resolve_bg(request.path)
@@ -314,7 +333,7 @@ def _sidebar_ctx():
         "category_names": [c["name"] for c in all_cats],
         "unread":         {i["category"]: i["unread"] for i in by_cat},
         "count":          {i["category"]: i["cnt"]    for i in by_cat},
-        "starred_count":  get_starred_count(),
+        "starred_count":  get_starred_count(user_id=uid_),
         "bg_image":       bg,
     }
     _SIDEBAR_CACHE["data"] = data
@@ -368,10 +387,10 @@ def auth_google():
         "client_id":     GOOGLE_CLIENT_ID,
         "redirect_uri":  redirect_uri,
         "response_type": "code",
-        "scope":         "openid email profile",
+        "scope":         GOOGLE_SCOPES,
         "state":         state,
         "access_type":   "offline",
-        "prompt":        "select_account",
+        "prompt":        "consent",  # завжди показуємо consent щоб отримати refresh_token
     }
     from urllib.parse import urlencode
     return redirect(f"{GOOGLE_AUTH_URL}?{urlencode(params)}")
@@ -379,7 +398,7 @@ def auth_google():
 
 @app.route("/auth/google/callback")
 def auth_google_callback():
-    """Обробляє callback від Google OAuth."""
+    """Обробляє callback від Google OAuth і зберігає токени в БД."""
     error = request.args.get("error")
     if error:
         flash(f"Помилка авторизації: {error}", "error")
@@ -405,7 +424,14 @@ def auth_google_callback():
         flash("Не вдалося отримати токен.", "error")
         return redirect(url_for("login"))
 
-    access_token = token_resp.json().get("access_token")
+    token_data    = token_resp.json()
+    access_token  = token_data.get("access_token", "")
+    refresh_token = token_data.get("refresh_token", "")
+    expires_in    = int(token_data.get("expires_in", 3600))
+    import time as _time
+    from datetime import datetime as _dt
+    token_expiry  = _dt.utcfromtimestamp(_time.time() + expires_in).isoformat()
+
     user_resp = _requests.get(GOOGLE_USERINFO_URL, headers={
         "Authorization": f"Bearer {access_token}"
     }, timeout=10)
@@ -415,10 +441,32 @@ def auth_google_callback():
         return redirect(url_for("login"))
 
     user_info = user_resp.json()
+    email     = user_info.get("email", "")
+    name      = user_info.get("name", email.split("@")[0] if email else "User")
+    avatar    = user_info.get("picture", "")
+    google_sub= user_info.get("id", "")
+
+    # Зберігаємо в БД
+    from database import upsert_user
+    user_id = upsert_user(email, name, avatar, google_sub,
+                          access_token, refresh_token, token_expiry)
+
     session["logged_in"] = True
-    session["username"]  = user_info.get("name", user_info.get("email", "User"))
-    session["email"]     = user_info.get("email", "")
-    session["avatar"]    = user_info.get("picture", "")
+    session["user_id"]   = user_id
+    session["username"]  = name
+    session["email"]     = email
+    session["avatar"]    = avatar
+
+    # Стартуємо першу синхронізацію у фоні (~30-60 сек)
+    global _manual_sync_thread
+    try:
+        if _manual_sync_thread is None or not _manual_sync_thread.is_alive():
+            _manual_sync_thread = threading.Thread(
+                target=_run_manual_sync, args=(user_id,), daemon=True
+            )
+            _manual_sync_thread.start()
+    except Exception as _e:
+        print(f"[oauth] sync start failed: {_e}")
 
     return redirect(url_for("index"))
 
@@ -426,7 +474,7 @@ def auth_google_callback():
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("login"))
+    return redirect(url_for("landing"))
 
 
 # ── Main pages ───────────────────────────────────────────────────
@@ -461,7 +509,7 @@ def category(name):
     all_cat_names = get_category_names() + ["Спам / Реклама", "Невизначено"]
     if name not in all_cat_names:
         return "Категорія не знайдена", 404
-    emails = get_emails_by_category(name)
+    emails = get_emails_by_category(name, user_id=current_user_id())
     return render_template("category.html", category=name,
                            emails=emails, **_sidebar_ctx())
 
@@ -469,7 +517,7 @@ def category(name):
 @app.route("/email/<int:email_id>")
 @login_required
 def email_detail(email_id):
-    em = get_email_by_id(email_id)
+    em = get_email_by_id(email_id, user_id=current_user_id())
     if not em:
         return "Лист не знайдено", 404
     mark_as_read(email_id)
@@ -484,7 +532,7 @@ def search():
     cat = request.args.get("category", "")
     results = []
     if q:
-        results = search_emails(q, category=cat if cat else None)
+        results = search_emails(q, category=cat if cat else None, user_id=current_user_id())
     return render_template(
         "search.html", q=q, results=results,
         filter_category=cat, **_sidebar_ctx()
@@ -633,8 +681,7 @@ def export_excel():
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
-    keys = ["imap_host", "imap_port", "email_user", "imap_pass",
-            "fetch_limit", "threshold", "sync_interval"]
+    keys = ["fetch_limit", "threshold", "sync_interval"]
 
     if request.method == "POST":
         for k in keys:
@@ -659,16 +706,20 @@ def settings():
 @login_required
 def fetch():
     try:
-        from email_fetcher import fetch_and_classify
-        s = fetch_and_classify()
+        from gmail_fetcher import fetch_and_classify
+        uid = current_user_id()
+        if not uid:
+            flash("Спочатку увійдіть через Google", "error")
+            return redirect(url_for("login"))
+        s = fetch_and_classify(user_id=uid)
         if s.get("error_msg"):
             flash(f"Помилка: {s['error_msg']}", "error")
         else:
-            saved = s.get('saved', 0)
+            saved = s.get('fetched', 0)
             msg = f"Додано {saved} нових листів" if saved > 0 else "Нових листів немає"
             flash(msg, "success")
     except Exception as e:
-        flash(f"Помилка IMAP: {e}", "error")
+        flash(f"Помилка Gmail: {e}", "error")
     return redirect(url_for("index"))
 
 
@@ -676,12 +727,14 @@ def fetch():
 @login_required
 def demo():
     from database import save_email
+    uid = current_user_id()
     cnt = 0
     for em in DEMO_EMAILS:
         cat, conf = _lazy_classify(em["subject"], em["body"], sender=em["sender"])
         save_email(uid=em["uid"], sender=em["sender"],
                    subject=em["subject"], body=em["body"],
-                   date=em["date"], category=cat, confidence=conf)
+                   date=em["date"], category=cat, confidence=conf,
+                   user_id=uid)
         cnt += 1
     flash(f"Демо: додано {cnt} листів!", "success")
     return redirect(url_for("index"))
@@ -697,7 +750,7 @@ def reclassify(email_id):
         # (тільки для «реальних» категорій, не для спаму — спам вчиться окремо)
         try:
             from database import get_email_by_id, add_user_correction
-            em = get_email_by_id(email_id)
+            em = get_email_by_id(email_id, user_id=current_user_id())
             if em and new_cat not in ("Спам / Реклама", "Невизначено") \
                   and em.get("category") != new_cat:
                 add_user_correction(
@@ -821,7 +874,7 @@ def stats():
 @app.route("/api/stats")
 @login_required
 def api_stats():
-    return jsonify(get_stats())
+    return jsonify(get_stats(user_id=current_user_id()))
 
 
 _MODEL_STATS_CACHE = {"data": None, "ts": 0, "computing": False}
@@ -931,7 +984,7 @@ def api_classify():
 @app.route("/starred")
 @login_required
 def starred():
-    emails = get_starred_emails()
+    emails = get_starred_emails(user_id=current_user_id())
     return render_template("starred.html", emails=emails, **_sidebar_ctx())
 
 
@@ -1027,7 +1080,10 @@ def sync_now():
         with _manual_sync_lock:
             return jsonify({"ok": True, "already_running": True,
                             "state": dict(_manual_sync_state)})
-    _manual_sync_thread = threading.Thread(target=_run_manual_sync, daemon=True)
+    uid = current_user_id()
+    _manual_sync_thread = threading.Thread(
+        target=_run_manual_sync, args=(uid,), daemon=True
+    )
     _manual_sync_thread.start()
     return jsonify({"ok": True, "started": True})
 
@@ -1069,7 +1125,7 @@ def delete_email_route(email_id):
 @app.route("/delete-demo", methods=["POST"])
 @login_required
 def delete_demo_route():
-    cnt = delete_demo_emails()
+    cnt = delete_demo_emails(user_id=current_user_id())
     flash(f"Видалено {cnt} демо-листів", "success")
     return redirect(url_for("index"))
 
@@ -1077,7 +1133,7 @@ def delete_demo_route():
 @app.route("/delete-all", methods=["POST"])
 @login_required
 def delete_all_route():
-    cnt = delete_all_emails()
+    cnt = delete_all_emails(user_id=current_user_id())
     flash(f"Видалено всі {cnt} листів", "success")
     return redirect(url_for("index"))
 

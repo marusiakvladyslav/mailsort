@@ -25,12 +25,28 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Створює таблиці, якщо їх ще немає."""
+    """Створює таблиці, якщо їх ще немає, і застосовує міграції."""
     with get_connection() as conn:
         conn.executescript("""
+            -- Користувачі (Google OAuth)
+            CREATE TABLE IF NOT EXISTS users (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                email           TEXT UNIQUE NOT NULL,
+                name            TEXT,
+                avatar          TEXT,
+                google_sub      TEXT UNIQUE,
+                access_token    TEXT,
+                refresh_token   TEXT,
+                token_expiry    TEXT,
+                last_login      TEXT DEFAULT (datetime('now')),
+                created_at      TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
             CREATE TABLE IF NOT EXISTS emails (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                uid         TEXT UNIQUE,
+                user_id     INTEGER,
+                uid         TEXT,
                 sender      TEXT,
                 subject     TEXT,
                 body        TEXT,
@@ -39,29 +55,25 @@ def init_db() -> None:
                 confidence  REAL,
                 is_read     INTEGER DEFAULT 0,
                 is_starred  INTEGER DEFAULT 0,
-                created_at  TEXT DEFAULT (datetime('now'))
+                created_at  TEXT DEFAULT (datetime('now')),
+                UNIQUE(user_id, uid)
             );
             CREATE INDEX IF NOT EXISTS idx_category ON emails(category);
-
             CREATE INDEX IF NOT EXISTS idx_date     ON emails(date);
+            CREATE INDEX IF NOT EXISTS idx_user     ON emails(user_id);
+
             CREATE TABLE IF NOT EXISTS settings (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL DEFAULT ''
             );
             INSERT OR IGNORE INTO settings (key, value) VALUES
-                ('imap_host',   'imap.gmail.com'),
-                ('imap_port',   '993'),
-                ('email_user',  ''),
-                ('imap_pass',   ''),
-                ('fetch_limit', '0'),
+                ('fetch_limit', '50'),
                 ('threshold',   '0.30'),
-                ('auth_user',     'admin'),
-                ('auth_pass',     'admin'),
                 ('sync_interval', '300');
 
             CREATE TABLE IF NOT EXISTS spam_rules (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
-                rule_type  TEXT NOT NULL,  -- 'domain' або 'keyword'
+                rule_type  TEXT NOT NULL,
                 value      TEXT NOT NULL UNIQUE,
                 created_at TEXT DEFAULT (datetime('now'))
             );
@@ -80,23 +92,21 @@ def init_db() -> None:
                 ('Адміністрація',         'clipboard',  1),
                 ('Заходи та події',       'calendar',   1);
 
-            -- Корекції користувача (для активного навчання)
             CREATE TABLE IF NOT EXISTS user_corrections (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
-                email_id      INTEGER,           -- опціонально, може бути NULL після видалення листа
+                email_id      INTEGER,
                 subject       TEXT NOT NULL,
                 body          TEXT NOT NULL,
                 sender        TEXT DEFAULT '',
-                old_category  TEXT,              -- що модель видала спочатку
+                old_category  TEXT,
                 old_confidence REAL,
-                new_category  TEXT NOT NULL,     -- що поставив користувач
-                used_in_model INTEGER DEFAULT 0, -- чи вже увійшло у навчання
+                new_category  TEXT NOT NULL,
+                used_in_model INTEGER DEFAULT 0,
                 created_at    TEXT DEFAULT (datetime('now'))
             );
             CREATE INDEX IF NOT EXISTS idx_corr_used ON user_corrections(used_in_model);
             CREATE INDEX IF NOT EXISTS idx_corr_cat ON user_corrections(new_category);
 
-            -- Історія версій ML-моделі (для сторінки /ml-quality)
             CREATE TABLE IF NOT EXISTS ml_model_versions (
                 id            INTEGER PRIMARY KEY AUTOINCREMENT,
                 model_name    TEXT,              -- 'SVM + char+word' і т.п.
@@ -108,62 +118,121 @@ def init_db() -> None:
             );
         """)
 
+        # Міграція: додаємо user_id у emails, якщо ще немає
+        try:
+            cols = [r[1] for r in conn.execute("PRAGMA table_info(emails)").fetchall()]
+            if "user_id" not in cols:
+                conn.execute("ALTER TABLE emails ADD COLUMN user_id INTEGER")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_user ON emails(user_id)")
+        except Exception:
+            pass
+
+
+# ─── Users (Google OAuth) ────────────────────────────────────────
+
+def upsert_user(email: str, name: str, avatar: str, google_sub: str,
+                access_token: str, refresh_token: str, token_expiry: str) -> int:
+    """Створює або оновлює користувача за email. Повертає user_id."""
+    with get_connection() as conn:
+        cur = conn.execute("SELECT id, refresh_token FROM users WHERE email=?", (email,))
+        row = cur.fetchone()
+        if row:
+            # Зберігаємо старий refresh_token якщо новий не прийшов
+            new_refresh = refresh_token or row["refresh_token"]
+            conn.execute("""
+                UPDATE users SET
+                    name=?, avatar=?, google_sub=?,
+                    access_token=?, refresh_token=?, token_expiry=?,
+                    last_login=datetime('now')
+                WHERE id=?
+            """, (name, avatar, google_sub, access_token, new_refresh, token_expiry, row["id"]))
+            return row["id"]
+        cur = conn.execute("""
+            INSERT INTO users (email, name, avatar, google_sub,
+                               access_token, refresh_token, token_expiry)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (email, name, avatar, google_sub, access_token, refresh_token, token_expiry))
+        return cur.lastrowid
+
+
+def get_user_by_id(user_id: int):
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def update_user_tokens(user_id: int, access_token: str, token_expiry: str) -> None:
+    with get_connection() as conn:
+        conn.execute("""
+            UPDATE users SET access_token=?, token_expiry=? WHERE id=?
+        """, (access_token, token_expiry, user_id))
+
 
 # ─── CRUD ────────────────────────────────────────────────────────
 
 def save_email(uid: str, sender: str, subject: str,
                body: str, date: str,
-               category: str, confidence: float) -> int:
-    """Зберігає лист. Якщо вже існує — оновлює категорію."""
+               category: str, confidence: float,
+               user_id: int = None) -> int:
+    """Зберігає лист. Якщо вже існує (user_id+uid) — оновлює категорію."""
     with get_connection() as conn:
         conn.execute("""
-            INSERT INTO emails (uid, sender, subject, body, date, category, confidence)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(uid) DO UPDATE SET
+            INSERT INTO emails (user_id, uid, sender, subject, body, date, category, confidence)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, uid) DO UPDATE SET
                 category   = excluded.category,
                 confidence = excluded.confidence
-        """, (uid, sender, subject, body, date, category, confidence))
-        row = conn.execute("SELECT id FROM emails WHERE uid=?", (uid,)).fetchone()
-        return row["id"]
+        """, (user_id, uid, sender, subject, body, date, category, confidence))
+        row = conn.execute(
+            "SELECT id FROM emails WHERE user_id IS ? AND uid=?",
+            (user_id, uid)
+        ).fetchone()
+        return row["id"] if row else 0
 
 
-def save_emails_bulk(rows: list[dict]) -> int:
-    """
-    Масова вставка (для email_fetcher). Одна транзакція на весь батч
-    замість N окремих з'єднань — дає ~100× прискорення при 500+ листах.
-    Очікує список dict з ключами: uid, sender, subject, body, date, category, confidence.
-    Повертає кількість вставлених/оновлених рядків.
-    """
+def save_emails_bulk(rows: list[dict], user_id: int = None) -> int:
+    """Масова вставка."""
     if not rows:
         return 0
     payload = [
-        (r["uid"], r["sender"], r["subject"], r["body"], r["date"],
+        (user_id, r["uid"], r["sender"], r["subject"], r["body"], r["date"],
          r["category"], r["confidence"])
         for r in rows
     ]
     with get_connection() as conn:
         conn.executemany("""
-            INSERT INTO emails (uid, sender, subject, body, date, category, confidence)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(uid) DO UPDATE SET
+            INSERT INTO emails (user_id, uid, sender, subject, body, date, category, confidence)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, uid) DO UPDATE SET
                 category   = excluded.category,
                 confidence = excluded.confidence
         """, payload)
     return len(rows)
 
 
-def get_emails_by_category(category: str) -> list[dict]:
+def get_emails_by_category(category: str, user_id: int = None) -> list[dict]:
     with get_connection() as conn:
-        rows = conn.execute("""
-            SELECT * FROM emails WHERE category=?
-            ORDER BY date DESC
-        """, (category,)).fetchall()
+        if user_id is None:
+            rows = conn.execute(
+                "SELECT * FROM emails WHERE category=? ORDER BY date DESC", (category,)
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM emails WHERE category=? AND user_id=? ORDER BY date DESC",
+                (category, user_id)
+            ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_email_by_id(email_id: int) -> dict | None:
+def get_email_by_id(email_id: int, user_id: int = None) -> dict | None:
     with get_connection() as conn:
-        row = conn.execute("SELECT * FROM emails WHERE id=?", (email_id,)).fetchone()
+        if user_id is None:
+            row = conn.execute("SELECT * FROM emails WHERE id=?", (email_id,)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM emails WHERE id=? AND user_id=?",
+                (email_id, user_id)
+            ).fetchone()
     return dict(row) if row else None
 
 
@@ -172,15 +241,25 @@ def mark_as_read(email_id: int) -> None:
         conn.execute("UPDATE emails SET is_read=1 WHERE id=?", (email_id,))
 
 
-def get_stats() -> dict:
-    """Повертає кількість листів по категоріях та загальну кількість."""
+def get_stats(user_id: int = None) -> dict:
+    """Кількість листів по категоріях та загальну кількість для конкретного юзера."""
     with get_connection() as conn:
-        rows = conn.execute("""
-            SELECT category, COUNT(*) as cnt,
-                   SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) as unread
-            FROM emails GROUP BY category
-        """).fetchall()
-        total = conn.execute("SELECT COUNT(*) as c FROM emails").fetchone()["c"]
+        if user_id is None:
+            rows = conn.execute("""
+                SELECT category, COUNT(*) as cnt,
+                       SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) as unread
+                FROM emails GROUP BY category
+            """).fetchall()
+            total = conn.execute("SELECT COUNT(*) as c FROM emails").fetchone()["c"]
+        else:
+            rows = conn.execute("""
+                SELECT category, COUNT(*) as cnt,
+                       SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END) as unread
+                FROM emails WHERE user_id=? GROUP BY category
+            """, (user_id,)).fetchall()
+            total = conn.execute(
+                "SELECT COUNT(*) as c FROM emails WHERE user_id=?", (user_id,)
+            ).fetchone()["c"]
     return {
         "total": total,
         "by_category": [dict(r) for r in rows],
@@ -188,7 +267,6 @@ def get_stats() -> dict:
 
 
 def reclassify_email(email_id: int, new_category: str) -> None:
-    """Ручне виправлення категорії користувачем."""
     with get_connection() as conn:
         conn.execute(
             "UPDATE emails SET category=?, confidence=1.0 WHERE id=?",
@@ -196,22 +274,36 @@ def reclassify_email(email_id: int, new_category: str) -> None:
         )
 
 
-def search_emails(query: str, category: str | None = None) -> list[dict]:
-    """Повнотекстовий пошук по темі, відправнику та тілу листа."""
+def search_emails(query: str, category: str | None = None,
+                  user_id: int = None) -> list[dict]:
     like = f"%{query}%"
     with get_connection() as conn:
-        if category:
-            rows = conn.execute("""
-                SELECT * FROM emails
-                WHERE category=? AND (subject LIKE ? OR sender LIKE ? OR body LIKE ?)
-                ORDER BY date DESC LIMIT 200
-            """, (category, like, like, like)).fetchall()
+        if user_id is None:
+            if category:
+                rows = conn.execute("""
+                    SELECT * FROM emails
+                    WHERE category=? AND (subject LIKE ? OR sender LIKE ? OR body LIKE ?)
+                    ORDER BY date DESC LIMIT 200
+                """, (category, like, like, like)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT * FROM emails
+                    WHERE subject LIKE ? OR sender LIKE ? OR body LIKE ?
+                    ORDER BY date DESC LIMIT 200
+                """, (like, like, like)).fetchall()
         else:
-            rows = conn.execute("""
-                SELECT * FROM emails
-                WHERE subject LIKE ? OR sender LIKE ? OR body LIKE ?
-                ORDER BY date DESC LIMIT 200
-            """, (like, like, like)).fetchall()
+            if category:
+                rows = conn.execute("""
+                    SELECT * FROM emails
+                    WHERE user_id=? AND category=? AND (subject LIKE ? OR sender LIKE ? OR body LIKE ?)
+                    ORDER BY date DESC LIMIT 200
+                """, (user_id, category, like, like, like)).fetchall()
+            else:
+                rows = conn.execute("""
+                    SELECT * FROM emails
+                    WHERE user_id=? AND (subject LIKE ? OR sender LIKE ? OR body LIKE ?)
+                    ORDER BY date DESC LIMIT 200
+                """, (user_id, like, like, like)).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -336,19 +428,31 @@ def toggle_starred(email_id: int) -> bool:
     return bool(new_val)
 
 
-def get_starred_emails() -> list[dict]:
+def get_starred_emails(user_id: int = None) -> list[dict]:
     with get_connection() as conn:
-        rows = conn.execute(
-            "SELECT * FROM emails WHERE is_starred=1 ORDER BY date DESC"
-        ).fetchall()
+        if user_id is None:
+            rows = conn.execute(
+                "SELECT * FROM emails WHERE is_starred=1 ORDER BY date DESC"
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM emails WHERE is_starred=1 AND user_id=? ORDER BY date DESC",
+                (user_id,)
+            ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_starred_count() -> int:
+def get_starred_count(user_id: int = None) -> int:
     with get_connection() as conn:
-        row = conn.execute(
-            "SELECT COUNT(*) as c FROM emails WHERE is_starred=1"
-        ).fetchone()
+        if user_id is None:
+            row = conn.execute(
+                "SELECT COUNT(*) as c FROM emails WHERE is_starred=1"
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) as c FROM emails WHERE is_starred=1 AND user_id=?",
+                (user_id,)
+            ).fetchone()
     return row["c"]
 
 
@@ -465,21 +569,37 @@ def delete_email(email_id: int) -> None:
         conn.execute("DELETE FROM emails WHERE id=?", (email_id,))
 
 
-def delete_demo_emails() -> int:
+def delete_demo_emails(user_id: int = None) -> int:
     """Видаляє всі демо-листи (uid починається з 'demo_')."""
     with get_connection() as conn:
-        cnt = conn.execute(
-            "SELECT COUNT(*) FROM emails WHERE uid LIKE 'demo_%'"
-        ).fetchone()[0]
-        conn.execute("DELETE FROM emails WHERE uid LIKE 'demo_%'")
+        if user_id is None:
+            cnt = conn.execute(
+                "SELECT COUNT(*) FROM emails WHERE uid LIKE 'demo_%'"
+            ).fetchone()[0]
+            conn.execute("DELETE FROM emails WHERE uid LIKE 'demo_%'")
+        else:
+            cnt = conn.execute(
+                "SELECT COUNT(*) FROM emails WHERE uid LIKE 'demo_%' AND user_id=?",
+                (user_id,)
+            ).fetchone()[0]
+            conn.execute(
+                "DELETE FROM emails WHERE uid LIKE 'demo_%' AND user_id=?",
+                (user_id,)
+            )
     return cnt
 
 
-def delete_all_emails() -> int:
+def delete_all_emails(user_id: int = None) -> int:
     """Видаляє всі листи з БД."""
     with get_connection() as conn:
-        cnt = conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
-        conn.execute("DELETE FROM emails")
+        if user_id is None:
+            cnt = conn.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
+            conn.execute("DELETE FROM emails")
+        else:
+            cnt = conn.execute(
+                "SELECT COUNT(*) FROM emails WHERE user_id=?", (user_id,)
+            ).fetchone()[0]
+            conn.execute("DELETE FROM emails WHERE user_id=?", (user_id,))
     return cnt
 
 

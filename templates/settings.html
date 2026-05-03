@@ -4,6 +4,7 @@
 {% block extra_head %}
 <style>
 .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width:880px){.settings-grid{grid-template-columns:1fr}}
 .settings-card {
   background: var(--card-bg); border: 1px solid var(--border);
   border-radius: var(--r); padding: 24px 28px; backdrop-filter: blur(8px);
@@ -11,12 +12,11 @@
 .settings-card-title {
   font-size: 11px; font-weight: 600; letter-spacing: 1px;
   text-transform: uppercase; color: var(--muted); margin-bottom: 20px;
-  
 }
 .field { margin-bottom: 16px; }
 .field label { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 6px; }
 .field input, .field select {
-  width: 100%; background: rgba(28,30,35,.9); border: 1px solid var(--border2);
+  width: 100%; background: var(--bg3); border: 1px solid var(--border2);
   border-radius: var(--rs); color: var(--text); padding: 8px 12px;
   font-family: var(--font); font-size: 13px;
   transition: border-color .15s; outline: none;
@@ -24,63 +24,83 @@
 .field input:focus, .field select:focus { border-color: var(--accent); }
 .field .hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
 
-
+.account-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 22px 26px;
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 20px;
+}
+.account-avatar {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: 2px solid var(--accent);
+  flex-shrink: 0;
+}
+.account-info{flex:1;min-width:0}
+.account-name { font-size: 16px; font-weight: 600; }
+.account-email { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.account-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 99px;
+  background: rgba(46,189,133,.12); color: var(--green);
+  font-size: 11px; margin-top: 6px;
+}
+.account-badge::before {
+  content:''; width:6px; height:6px; border-radius:50%;
+  background: var(--green); display:inline-block;
+}
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="page-title">Налаштування</div>
-<div class="page-sub">IMAP-з'єднання, поріг класифікації</div>
+<div class="page-sub">Параметри класифікації та синхронізації</div>
+
+{% if session.get('email') %}
+<div class="account-card">
+  {% if session.get('avatar') %}
+  <img src="{{ session['avatar'] }}" class="account-avatar" alt="" referrerpolicy="no-referrer"
+       onerror="this.style.display='none'">
+  {% endif %}
+  <div class="account-info">
+    <div class="account-name">{{ session.get('username','') }}</div>
+    <div class="account-email">{{ session.get('email','') }}</div>
+    <div class="account-badge">Підключено через Google</div>
+  </div>
+  <a href="/logout" class="btn btn-ghost">Вийти</a>
+</div>
+{% endif %}
 
 <form method="POST">
 <div class="settings-grid">
 
   <div class="settings-card">
-    <div class="settings-card-title">IMAP — підключення до пошти</div>
-    <div class="field">
-      <label>IMAP-хост</label>
-      <input type="text" name="imap_host" value="{{ settings.imap_host }}" placeholder="imap.gmail.com">
-      <div class="hint">Gmail: imap.gmail.com · Outlook: outlook.office365.com</div>
-    </div>
-    <div class="field">
-      <label>Порт</label>
-      <input type="text" name="imap_port" value="{{ settings.imap_port }}" placeholder="993">
-    </div>
-    <div class="field">
-      <label>Email-адреса</label>
-      <input type="text" name="email_user" value="{{ settings.email_user }}" placeholder="you@university.edu.ua">
-    </div>
-    <div class="field">
-      <label>App Password (IMAP)</label>
-      <input type="password" name="imap_pass" value="{{ settings.imap_pass }}" placeholder="Наприклад: abcdefghijklmnop">
-      <div class="hint">Для Gmail — App Password без пробілів.</div>
-    </div>
+    <div class="settings-card-title">Синхронізація Gmail</div>
     <div class="field">
       <label>Ліміт листів за раз</label>
-      <input type="text" name="fetch_limit" value="{{ settings.fetch_limit }}" placeholder="0">
-      <div class="hint">0 = всі листи без обмежень</div>
+      <input type="text" name="fetch_limit" value="{{ settings.fetch_limit }}" placeholder="50">
+      <div class="hint">Скільки останніх листів отримувати з Gmail при кожній синхронізації. Рекомендовано: 50–100</div>
     </div>
     <div class="field">
       <label>Автосинхронізація</label>
       <select name="sync_interval">
         <option value="0"    {% if settings.sync_interval == "0"    %}selected{% endif %}>Вимкнено</option>
-        <option value="60"   {% if settings.sync_interval == "60"   %}selected{% endif %}>Кожну хвилину</option>
         <option value="300"  {% if settings.sync_interval == "300"  %}selected{% endif %}>Кожні 5 хвилин</option>
         <option value="600"  {% if settings.sync_interval == "600"  %}selected{% endif %}>Кожні 10 хвилин</option>
         <option value="1800" {% if settings.sync_interval == "1800" %}selected{% endif %}>Кожні 30 хвилин</option>
         <option value="3600" {% if settings.sync_interval == "3600" %}selected{% endif %}>Кожну годину</option>
       </select>
+      <div class="hint">Коли увімкнено, нові листи завантажуються автоматично у фоні.</div>
     </div>
   </div>
 
-  <div>
-    <div class="settings-card">
-      <div class="settings-card-title">Класифікатор</div>
-      <div class="field">
-        <label>Поріг впевненості</label>
-        <input type="text" name="threshold" value="{{ settings.threshold }}" placeholder="0.30">
-        <div class="hint">0.00–1.00 · Нижче порогу → «Невизначено». Рекомендовано: 0.25–0.40</div>
-      </div>
+  <div class="settings-card">
+    <div class="settings-card-title">Класифікатор</div>
+    <div class="field">
+      <label>Поріг впевненості</label>
+      <input type="text" name="threshold" value="{{ settings.threshold }}" placeholder="0.30">
+      <div class="hint">0.00–1.00 · Нижче порогу → «Невизначено». Рекомендовано: 0.25–0.40</div>
     </div>
   </div>
 
@@ -93,4 +113,3 @@
 </form>
 
 {% endblock %}
-

@@ -41,7 +41,7 @@
   --news-bg:rgba(255,255,255,.92);
   --header-bg:rgba(255,255,255,.92);
   --card-bg:rgba(255,255,255,.95);
-  --bg-overlay:rgba(245,246,248,.78);
+  --bg-overlay:rgba(245,246,248,.85);
   --font:'Inter',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
   --r:10px;--rs:6px
 }
@@ -94,6 +94,14 @@ a:hover{text-decoration:underline}
 .app-badge svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .app-title{font-size:15px;font-weight:600;color:var(--text);letter-spacing:-.3px}
 .app-sub{font-size:10px;color:var(--muted)}
+
+/* User greeting */
+.user-greet{display:flex;align-items:center;gap:10px;padding:10px 18px 12px;border-top:1px solid var(--border);margin-top:4px;background:linear-gradient(135deg,rgba(78,141,232,.04),transparent)}
+.user-avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;object-fit:cover;border:1.5px solid var(--accent)}
+.user-avatar-fallback{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#3a74cc,#5b4fd4);color:#fff;font-weight:600;font-size:13px;border:none}
+.user-info{min-width:0;flex:1}
+.user-hi{font-size:9.5px;color:var(--muted2);text-transform:uppercase;letter-spacing:.7px;line-height:1.4}
+.user-name{font-size:12.5px;font-weight:600;color:var(--text);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* Search */
 .search-box{padding:10px 14px;border-bottom:1px solid var(--border)}
@@ -200,7 +208,6 @@ a:hover{text-decoration:underline}
   backdrop-filter:blur(0px);
 }
 .bg-fullscreen.fading{opacity:0}
-[data-theme="light"] .bg-fullscreen{opacity:.15}
 
 /* Light theme: override hardcoded dark backgrounds in child templates */
 [data-theme="light"] .card,
@@ -252,8 +259,8 @@ a:hover{text-decoration:underline}
 .news-ref-btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .news-item{display:block;padding:9px 14px 9px 12px;border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s,border-left-color .15s;border-left:3px solid transparent;position:relative;text-decoration:none !important}
 .news-item:hover{background:rgba(78,141,232,.06);border-left-color:var(--accent);text-decoration:none !important}
-.news-item-title{font-size:12px;color:rgba(220,224,234,.9);text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5;font-weight:400;transition:color .15s}
-.news-item:hover .news-item-title{color:#fff;text-decoration:none}
+.news-item-title{font-size:12px;color:var(--text);text-decoration:none;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.5;font-weight:500;transition:color .15s}
+.news-item:hover .news-item-title{color:var(--accent);text-decoration:none}
 .news-item-meta{display:flex;align-items:center;gap:6px;margin-top:5px}
 .news-cat{font-size:9px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;padding:2px 6px;border-radius:3px;opacity:.85}
 .news-date{font-size:10px;color:var(--muted2);font-family:var(--mono)}
@@ -424,6 +431,20 @@ a:hover{text-decoration:underline}
         <div class="app-sub">Класифікатор пошти</div>
       </div>
     </div>
+    {% if session.get('logged_in') and session.get('username') %}
+    <div class="user-greet">
+      {% if session.get('avatar') %}
+      <img src="{{ session['avatar'] }}" class="user-avatar" alt="" referrerpolicy="no-referrer"
+           onerror="this.style.display='none'">
+      {% else %}
+      <div class="user-avatar user-avatar-fallback">{{ session['username'][0]|upper }}</div>
+      {% endif %}
+      <div class="user-info">
+        <div class="user-hi">Вітаю,</div>
+        <div class="user-name">{{ session['username'] }}</div>
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <div class="search-box">
