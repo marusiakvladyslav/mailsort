@@ -237,7 +237,14 @@ a:hover{text-decoration:underline}
 }
 [data-theme="light"] .news-modal{background:var(--bg2) !important;border-color:var(--border) !important}
 [data-theme="light"] .sp-modal{background:var(--bg2) !important;border-color:var(--border) !important}
-[data-theme="light"] .bg-fullscreen{display:none}
+
+/* У світлій темі фон видимий, але через білий напівпрозорий шар (90% opacity) */
+[data-theme="light"] .bg-fullscreen{opacity:.40}
+[data-theme="light"] .bg-fullscreen::after{
+  background:linear-gradient(180deg,
+    rgba(245,246,248,.45) 0%,
+    rgba(245,246,248,.92) 100%);
+}
 
 /* Main content */
 .main-inner{display:flex;flex:1;overflow:hidden;position:relative;z-index:1}

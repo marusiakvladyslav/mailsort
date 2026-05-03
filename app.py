@@ -275,6 +275,14 @@ def login_required(f):
     def decorated(*args, **kwargs):
         if not session.get("logged_in"):
             return redirect(url_for("login", next=request.path))
+        # Перевіряємо чи юзер з сесії реально існує в БД
+        # (на Railway free БД скидається при кожному redeploy)
+        uid = session.get("user_id")
+        if uid:
+            from database import get_user_by_id
+            if not get_user_by_id(uid):
+                session.clear()
+                return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
 
@@ -1445,24 +1453,35 @@ def _run_retrain():
             })
 
 
+_DIAG_CACHE = {"data": None, "markers": None, "ts": 0}
+
 @app.route("/ml-quality")
 @login_required
 def ml_quality():
     """Сторінка діагностики ML-моделі: метрики + матриця помилок + історія."""
     from database import get_corrections_stats, get_model_versions
     from classifier import diagnose, get_threshold, get_keyword_markers
-    try:
-        diag = diagnose()
-    except Exception as e:
-        import traceback; traceback.print_exc()
-        diag = {"error": str(e), "labels": [], "matrix": [],
-                "per_class": {}, "accuracy": 0, "f1_weighted": 0,
-                "top_mistakes": [], "test_size": 0, "train_size": 0}
+    import time as _t
 
-    try:
-        markers = get_keyword_markers()
-    except Exception:
-        markers = {}
+    now = _t.time()
+    if _DIAG_CACHE["data"] and (now - _DIAG_CACHE["ts"]) < 600:
+        diag    = _DIAG_CACHE["data"]
+        markers = _DIAG_CACHE["markers"]
+    else:
+        try:
+            diag = diagnose()
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            diag = {"error": str(e), "labels": [], "matrix": [],
+                    "per_class": {}, "accuracy": 0, "f1_weighted": 0,
+                    "top_mistakes": [], "test_size": 0, "train_size": 0}
+        try:
+            markers = get_keyword_markers()
+        except Exception:
+            markers = {}
+        _DIAG_CACHE["data"]    = diag
+        _DIAG_CACHE["markers"] = markers
+        _DIAG_CACHE["ts"]      = now
 
     return render_template(
         "ml_quality.html",
@@ -1514,6 +1533,17 @@ from database import get_setting as _gs
 _interval = int(_gs('sync_interval', '300'))
 if _interval > 0:
     start_auto_sync(_interval)
+
+# Прогріваємо класифікатор у фоні щоб перша класифікація була миттєвою.
+# Без цього перший sync тренує модель -> на 0.1 vCPU це 5-10 сек.
+def _warm_classifier():
+    try:
+        from classifier import classify
+        classify("test", "test")
+    except Exception as _e:
+        print(f"[startup] classifier warmup failed: {_e}")
+
+threading.Thread(target=_warm_classifier, daemon=True).start()
 
 # Прогріваємо ML-stats у фоні щоб /stats відкривався миттєво
 try:

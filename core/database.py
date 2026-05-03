@@ -1,24 +1,54 @@
 """
-database.py — модуль роботи з базою даних SQLite.
-Зберігає листи та результати класифікації.
+database.py — модуль роботи з базою даних.
+Підтримує два режими:
+  • Якщо встановлено TURSO_DATABASE_URL і TURSO_AUTH_TOKEN —
+    використовується Turso (libSQL у хмарі, persistent).
+  • Інакше — локальний SQLite файл (для розробки).
 """
 import sqlite3
 import os
 from config import DB_PATH
 
+# Дізнаємось, чи Turso активний
+TURSO_URL   = os.environ.get("TURSO_DATABASE_URL", "").strip()
+TURSO_TOKEN = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
+USE_TURSO   = bool(TURSO_URL and TURSO_TOKEN)
 
-def get_connection() -> sqlite3.Connection:
+# Лінива ініціалізація libsql — імпортуємо лише якщо потрібно
+_libsql = None
+if USE_TURSO:
+    try:
+        import libsql as _libsql
+    except ImportError:
+        print("[database] WARNING: libsql не встановлено, використовується SQLite")
+        USE_TURSO = False
+
+
+def get_connection():
+    """
+    Повертає Connection з API сумісним з sqlite3.
+    Якщо TURSO_* env vars задано — підключається до Turso (хмара),
+    інакше — до локального SQLite файлу.
+    """
+    if USE_TURSO and _libsql is not None:
+        # Turso (libSQL у хмарі): persistent, скидання disk не страшне
+        conn = _libsql.connect(database=TURSO_URL, auth_token=TURSO_TOKEN)
+        try:
+            conn.row_factory = sqlite3.Row
+        except Exception:
+            pass
+        return conn
+
+    # Локальний SQLite (розробка)
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    # Продуктивність: WAL + менш агресивний fsync.
-    # У локальному застосунку ризик втрати останньої транзакції при раптовому
-    # вимкненні живлення прийнятний, а швидкодія масових вставок зростає у десятки разів.
+    # Продуктивність: WAL + менш агресивний fsync (тільки для локального файлу).
     try:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
         conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA cache_size=-16000")  # 16 МБ кешу сторінок
+        conn.execute("PRAGMA cache_size=-16000")
     except Exception:
         pass
     return conn
