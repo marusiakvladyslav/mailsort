@@ -9,4 +9,4 @@ beautifulsoup4==4.12.3
 requests==2.31.0
 python-docx==1.1.2
 markupsafe==2.1.5
-libsql==0.0.7
+libsql==0.1.11
